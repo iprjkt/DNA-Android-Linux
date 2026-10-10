@@ -1,0 +1,8 @@
+[plugin]
+id = "example-tweak"
+name = "Example Tweak Plugin"
+version = "1.0.0"
+author = "DNA Community"
+description = "A demonstration plugin showing workspace environment integration."
+entrypoint = "run.sh"
+min_dna_version = "1.0.0"
