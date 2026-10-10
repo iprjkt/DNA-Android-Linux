@@ -7,9 +7,14 @@ import click
 from rich.console import Console
 
 from dna_cli import __version__
+from dna_cli.commands.convert import convert_group
 from dna_cli.commands.doctor import doctor_cmd
 from dna_cli.commands.project import project_group
+from dna_cli.commands.repack import repack_group
+from dna_cli.commands.resize import resize_cmd
 from dna_cli.commands.rom import rom_group, unzip_cmd
+from dna_cli.commands.super import super_group
+from dna_cli.commands.unpack import unpack_group
 from dna_core.logger import setup_logger
 
 
@@ -77,6 +82,11 @@ def cli(
 cli.add_command(doctor_cmd)
 cli.add_command(project_group)
 cli.add_command(rom_group)
+cli.add_command(unpack_group)
+cli.add_command(repack_group)
+cli.add_command(resize_cmd)
+cli.add_command(convert_group)
+cli.add_command(super_group)
 
 # Convenience top-level alias: dna unzip-rom
 @cli.command(name="unzip-rom", help="Alias for 'dna rom unzip'.")
