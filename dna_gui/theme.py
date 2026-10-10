@@ -132,6 +132,7 @@ QPushButton#btn_danger:hover {
 
 /* Inputs and LineEdits */
 QLineEdit, QComboBox {
+    combobox-popup: 0;
     background-color: #13141c;
     color: #f3f4f6;
     border: 1px solid #272a39;
@@ -150,13 +151,39 @@ QComboBox::drop-down {
     margin-right: 8px;
 }
 
-QComboBox QAbstractItemView {
-    background-color: #161822;
-    color: #f3f4f6;
-    selection-background-color: #0284c7;
-    border: 1px solid #272a39;
-    border-radius: 6px;
+QComboBoxPrivateContainer {
+    background-color: #2b2d32;
+    border: 1px solid #3c3f46;
+    border-radius: 10px;
     padding: 4px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #2b2d32;
+    color: #f3f4f6;
+    selection-background-color: #383b42;
+    selection-color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 4px;
+    outline: none;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 30px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: #cbd5e1;
+}
+
+QComboBox QAbstractItemView::item:hover {
+    background-color: #383b42;
+    color: #ffffff;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: #383b42;
+    color: #ffffff;
 }
 
 /* Progress Bar */
