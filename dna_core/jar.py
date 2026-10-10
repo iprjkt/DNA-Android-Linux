@@ -473,26 +473,47 @@ def patch_services_jar(
 def patch_core_patch_dsv(
     jar_path: Path | str,
     output_jar: Optional[Path | str] = None,
+    disable_invoke_custom: bool = False,
     dry_run: bool = False,
 ) -> Dict[str, Any]:
     """Apply Core Patch DSV (bypass signature verification) to services.jar."""
-    return patch_services_jar(jar_path, output_jar=output_jar, patch_dsv=True, dry_run=dry_run)
+    return patch_services_jar(
+        jar_path,
+        output_jar=output_jar,
+        patch_dsv=True,
+        disable_invoke_custom=disable_invoke_custom,
+        dry_run=dry_run,
+    )
 
 
 def patch_remove_apk_protection(
     jar_path: Path | str,
     output_jar: Optional[Path | str] = None,
+    disable_invoke_custom: bool = False,
     dry_run: bool = False,
 ) -> Dict[str, Any]:
     """Apply Remove APK Protection to services.jar."""
-    return patch_services_jar(jar_path, output_jar=output_jar, patch_apk_protection=True, dry_run=dry_run)
+    return patch_services_jar(
+        jar_path,
+        output_jar=output_jar,
+        patch_apk_protection=True,
+        disable_invoke_custom=disable_invoke_custom,
+        dry_run=dry_run,
+    )
 
 
 def patch_disable_secure_screenshot(
     jar_path: Path | str,
     output_jar: Optional[Path | str] = None,
+    disable_invoke_custom: bool = False,
     dry_run: bool = False,
 ) -> Dict[str, Any]:
     """Apply Disable Secure Screenshot (with Android 17 CompletableFuture fix) to services.jar."""
-    return patch_services_jar(jar_path, output_jar=output_jar, patch_dss=True, dry_run=dry_run)
+    return patch_services_jar(
+        jar_path,
+        output_jar=output_jar,
+        patch_dss=True,
+        disable_invoke_custom=disable_invoke_custom,
+        dry_run=dry_run,
+    )
 

@@ -7,7 +7,7 @@ import sys
 from typing import Any, Callable
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from dna_core.config import get_background_image, set_background_image
 from dna_core.debloat import debloat_rom
 from dna_core.jar import (
     patch_core_patch_dsv,
@@ -64,10 +65,21 @@ from dna_gui.widgets.console import ConsoleWidget
 from dna_gui.widgets.dialogs import (
     AboutDialog,
     ConfirmDialog,
+    CorePatchDsvDialog,
+    DebloatRomDialog,
     DeleteProjectDialog,
+    DisableSecureScreenshotDialog,
     DoctorDialog,
+    ImgSimgDialog,
     InputDialog,
+    PatchVbmetaDialog,
+    RemoveApkProtectionDialog,
+    RepackSingleImgDialog,
+    RepackSuperDialog,
+    RepackZstdDialog,
     SelectProjectDialog,
+    UnpackImgDialog,
+    UnpackZstdDialog,
 )
 from dna_gui.widgets.header import HeaderWidget
 from dna_gui.worker import WorkerThread
@@ -84,6 +96,7 @@ class MainWindow(QMainWindow):
 
         self.worker: WorkerThread | None = None
         self.is_transparent_ui: bool = False
+        self.background_pixmap: QPixmap | None = None
         self.setStyleSheet(DARK_THEME_QSS)
 
         # Set original DNA-Android logo
@@ -96,6 +109,7 @@ class MainWindow(QMainWindow):
 
         # Central layout
         central_widget = QWidget()
+        central_widget.setObjectName("central_widget")
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -155,9 +169,30 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.splitter, stretch=1)
 
+        # Load persisted background wallpaper if configured
+        bg_init = get_background_image()
+        if bg_init:
+            self._load_background_image(bg_init)
 
         # Sync active project on launch
         self._refresh_active_project_state()
+
+    def paintEvent(self, event: Any) -> None:
+        super().paintEvent(event)
+        if self.background_pixmap and not self.background_pixmap.isNull():
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            scaled = self.background_pixmap.scaled(
+                self.size(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = (self.width() - scaled.width()) // 2
+            y = (self.height() - scaled.height()) // 2
+            painter.drawPixmap(x, y, scaled)
+
+            # Translucent dark scrim layer so cards, text, and terminal pop cleanly
+            painter.fillRect(self.rect(), QColor(14, 15, 18, 205))
 
     def _switch_view(self, index: int, title: str) -> None:
         self.stack.setCurrentIndex(index)
@@ -172,16 +207,30 @@ class MainWindow(QMainWindow):
             self._switch_view(0, "DNA-Android")
 
     def _open_about(self) -> None:
-        dlg = AboutDialog(self, is_transparent=self.is_transparent_ui)
+        dlg = AboutDialog(self)
+        dlg.background_changed.connect(self._on_background_changed)
         dlg.transparent_toggled.connect(self._on_transparent_toggled)
         dlg.exec()
 
+    def _on_background_changed(self, path: str) -> None:
+        self._load_background_image(path)
+
+    def _load_background_image(self, path: str | None) -> None:
+        if path and Path(path).is_file():
+            pix = QPixmap(path)
+            if not pix.isNull():
+                self.background_pixmap = pix
+                self.centralWidget().setStyleSheet("background-color: transparent;")
+            else:
+                self.background_pixmap = None
+                self.centralWidget().setStyleSheet("")
+        else:
+            self.background_pixmap = None
+            self.centralWidget().setStyleSheet("")
+        self.update()
+
     def _on_transparent_toggled(self, enabled: bool) -> None:
         self.is_transparent_ui = enabled
-        if enabled:
-            self.setWindowOpacity(0.93)
-        else:
-            self.setWindowOpacity(1.0)
 
     def _refresh_active_project_state(self) -> None:
         active = get_active_project()
@@ -409,44 +458,44 @@ class MainWindow(QMainWindow):
         proj = self._require_project()
         if not proj:
             return
-        img_files = [f for f in proj.images.glob("*.img") if f.name != "super.img"]
-        if not img_files:
-            chosen, _ = QFileDialog.getOpenFileName(
-                self, "Select Partition Image (.img)", str(proj.images), "Image (*.img);;All Files (*)"
-            )
-            if not chosen:
+        dlg = UnpackImgDialog(proj, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            selected = dlg.get_selected_files()
+            del_src = dlg.get_delete_source()
+            if not selected:
+                QMessageBox.warning(self, "No Selection", "Please select at least one partition image to unpack.")
                 return
-            target = Path(chosen)
-        else:
-            items = [f.name for f in img_files]
-            chosen_name, ok = QInputDialog.getItem(
-                self, "Select Image to Unpack", "Select partition image:", items, 0, False
-            )
-            if not ok or not chosen_name:
-                return
-            target = proj.images / chosen_name
 
-        part_name = target.stem
-        out_dir = proj.unpacked / part_name
-        self.run_async_task(f"Unpack Image ({target.name})", unpack_image, target, out_dir)
+            def _do_unpack_all() -> None:
+                for target in selected:
+                    part_name = target.stem
+                    out_dir = proj.unpacked / part_name
+                    unpack_image(target, out_dir, delete_source=del_src)
+
+            first_name = selected[0].name
+            title_text = f"Unpack {first_name}" if len(selected) == 1 else f"Unpack {len(selected)} Images"
+            self.run_async_task(title_text, _do_unpack_all)
 
     def _action_unpack_zstd(self) -> None:
         proj = self._require_project()
         if not proj:
             return
-        zst_files = list(proj.images.glob("*.zst"))
-        if zst_files:
-            target = zst_files[0]
-        else:
-            chosen, _ = QFileDialog.getOpenFileName(
-                self, "Select Zstandard Archive", str(proj.images), "Zstd (*.zst);;All Files (*)"
-            )
-            if not chosen:
+        dlg = UnpackZstdDialog(proj, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            selected = dlg.get_selected_files()
+            del_src = dlg.get_delete_source()
+            if not selected:
+                QMessageBox.warning(self, "No Selection", "Please select at least one ZSTD file to unpack.")
                 return
-            target = Path(chosen)
 
-        out_img = target.with_suffix("")
-        self.run_async_task("Decompress Zstd", unpack_zstd, target, out_file=out_img)
+            def _do_unpack_zst() -> None:
+                for target in selected:
+                    out_img = target.with_suffix("")
+                    unpack_zstd(target, out_file=out_img, delete_source=del_src)
+
+            first_name = selected[0].name
+            title_text = f"Decompress {first_name}" if len(selected) == 1 else f"Decompress {len(selected)} Archives"
+            self.run_async_task(title_text, _do_unpack_zst)
 
     def _action_unpack_super(self) -> None:
         proj = self._require_project()
@@ -486,81 +535,126 @@ class MainWindow(QMainWindow):
         proj = self._require_project()
         if not proj:
             return
-        unpacked_dirs = [d for d in proj.unpacked.iterdir() if d.is_dir()]
-        if not unpacked_dirs:
-            QMessageBox.warning(
-                self,
-                "No Unpacked Folders",
-                f"No unpacked partition directories found in {proj.unpacked}.\nUnpack an image first.",
-            )
-            return
+        dlg = RepackSingleImgDialog(proj, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            params = dlg.get_parameters()
+            chosen_name = params["partition"]
+            in_dir = proj.unpacked / chosen_name
+            if not in_dir.is_dir():
+                QMessageBox.warning(self, "Directory Not Found", f"Unpacked folder '{chosen_name}' not found.")
+                return
 
-        names = [d.name for d in unpacked_dirs]
-        chosen_name, ok = QInputDialog.getItem(
-            self, "Repack Single Partition", "Select partition directory to repack:", names, 0, False
-        )
-        if not ok or not chosen_name:
-            return
+            fs_type = params["fs_type"]
+            fmt = params["format"]
+            size_mb = params.get("custom_size_mb")
+            size_bytes = (size_mb * 1024 * 1024) if size_mb else None
+            brotli_level = params["brotli_level"]
+            erofs_algo = params["erofs_algo"]
+            erofs_level = params["erofs_level"]
+            out_img = proj.images / f"{chosen_name}.img"
 
-        in_dir = proj.unpacked / chosen_name
-        fs_type, ok2 = QInputDialog.getItem(
-            self, "Filesystem Type", "Select filesystem format:", ["ext4", "erofs"], 0, False
-        )
-        if not ok2 or not fs_type:
-            return
+            def _do_repack() -> Path:
+                res = repack_image(
+                    in_dir,
+                    out_img=out_img,
+                    fs_type=fs_type,
+                    output_format=fmt,
+                    size_bytes=size_bytes,
+                    compress_erofs=erofs_algo,
+                    erofs_level=erofs_level,
+                    brotli_level=brotli_level,
+                )
+                if params.get("remove_avb"):
+                    try:
+                        decrypt_rom(in_dir)
+                    except Exception:
+                        pass
+                return res
 
-        out_img = proj.images / f"{chosen_name}.img"
-        self.run_async_task(f"Repack {chosen_name}.img ({fs_type})", repack_image, in_dir, out_img, fs_type=fs_type)
+            self.run_async_task(f"Repack {chosen_name}.img ({fs_type})", _do_repack)
 
     def _action_repack_zstd(self) -> None:
         proj = self._require_project()
         if not proj:
             return
-        chosen, _ = QFileDialog.getOpenFileName(
-            self, "Select image to compress with zstd", str(proj.images), "Image (*.img);;All Files (*)"
-        )
-        if not chosen:
-            return
-        target = Path(chosen)
-        out_zst = target.with_suffix(target.suffix + ".zst")
-        self.run_async_task(f"Compress Zstd ({target.name})", repack_zstd, target, out_file=out_zst)
+        dlg = RepackZstdDialog(proj, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            selected = dlg.get_selected_files()
+            del_src = dlg.get_delete_source()
+            level = dlg.get_compression_level()
+            if not selected:
+                QMessageBox.warning(self, "No Selection", "Please select at least one file to compress.")
+                return
+
+            def _do_repack_zst() -> None:
+                for target in selected:
+                    out_zst = target.with_suffix(target.suffix + ".zst")
+                    repack_zstd(target, out_file=out_zst, level=level, delete_source=del_src)
+
+            first_name = selected[0].name
+            title_text = f"Compress {first_name} (zstd -{level})" if len(selected) == 1 else f"Compress {len(selected)} Files (zstd -{level})"
+            self.run_async_task(title_text, _do_repack_zst)
 
     def _action_repack_super(self) -> None:
         proj = self._require_project()
         if not proj:
             return
-        out_super = proj.out / "super.img"
-        confirm = ConfirmDialog(
-            "Repack super.img",
-            f"Assemble dynamic super.img from partitions in:\n{proj.images}\nOutput:\n{out_super}?",
-            confirm_text="Repack super.img",
-            parent=self,
-        )
-        if confirm.exec() == ConfirmDialog.DialogCode.Accepted:
-            self.run_async_task("Repack super.img", repack_super, proj.images, out_super)
+        dlg = RepackSuperDialog(proj, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            params = dlg.get_parameters()
+            selected = params["selected_files"]
+            if not selected:
+                selected = [f for f in proj.images.glob("*.img") if f.name != "super.img"]
+            if not selected:
+                QMessageBox.warning(self, "No Images", "No partition images found to assemble super.img.")
+                return
+
+            out_super = proj.out / "super.img"
+            self.run_async_task(
+                "Repack super.img",
+                repack_super,
+                selected,
+                out_super=out_super,
+                device_size=params["device_size"],
+                group_name=params["group_name"],
+                slot_type=params["slot_type"],
+                sparse=params["sparse"],
+            )
 
     def _action_convert_simg(self) -> None:
         proj = self._require_project()
         if not proj:
             return
-        chosen, _ = QFileDialog.getOpenFileName(
-            self, "Select Image for Simg/Raw Conversion", str(proj.images), "Image (*.img);;All Files (*)"
-        )
-        if not chosen:
-            return
-        target = Path(chosen)
-        mode, ok = QInputDialog.getItem(
-            self, "Conversion Mode", "Choose conversion:", ["Raw to Sparse (img2simg)", "Sparse to Raw (simg2img)"], 0, False
-        )
-        if not ok:
-            return
+        dlg = ImgSimgDialog(proj, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            params = dlg.get_parameters()
+            selected = params["selected_files"]
+            mode = params["mode"]
+            if not selected:
+                QMessageBox.warning(self, "No Selection", "Please select at least one image to convert.")
+                return
 
-        if "Raw to Sparse" in mode:
-            out_img = target.with_name(f"{target.stem}_sparse.img")
-            self.run_async_task("Convert Raw to Sparse", raw_to_sparse, target, out_img)
-        else:
-            out_img = target.with_name(f"{target.stem}_raw.img")
-            self.run_async_task("Convert Sparse to Raw", sparse_to_raw, target, out_img)
+            def _do_convert() -> None:
+                for target in selected:
+                    if "Sparse to Raw" in mode:
+                        out_img = target.with_name(f"{target.stem}_raw.img")
+                        sparse_to_raw(target, out_img)
+                    elif "Raw to Sparse" in mode:
+                        out_img = target.with_name(f"{target.stem}_sparse.img")
+                        raw_to_sparse(target, out_img)
+                    else:
+                        from dna_core.detection import detect_image_type, ImageType
+                        img_t = detect_image_type(target)
+                        if img_t == ImageType.SPARSE:
+                            out_img = target.with_name(f"{target.stem}_raw.img")
+                            sparse_to_raw(target, out_img)
+                        else:
+                            out_img = target.with_name(f"{target.stem}_sparse.img")
+                            raw_to_sparse(target, out_img)
+
+            first_name = selected[0].name
+            title_text = f"Convert {first_name}" if len(selected) == 1 else f"Convert {len(selected)} Images"
+            self.run_async_task(title_text, _do_convert)
 
     def _action_convert_dat_br(self) -> None:
         proj = self._require_project()
@@ -626,7 +720,15 @@ class MainWindow(QMainWindow):
         jar_path = self._find_or_pick_services_jar(proj)
         if not jar_path:
             return
-        self.run_async_task("Core Patch DSV", patch_core_patch_dsv, jar_path)
+        dlg = CorePatchDsvDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            params = dlg.get_parameters()
+            self.run_async_task(
+                "Core Patch DSV",
+                patch_core_patch_dsv,
+                jar_path,
+                disable_invoke_custom=params.get("remove_invoke_custom", False),
+            )
 
     def _action_jar_apk_protection(self) -> None:
         proj = self._require_project()
@@ -635,7 +737,15 @@ class MainWindow(QMainWindow):
         jar_path = self._find_or_pick_services_jar(proj)
         if not jar_path:
             return
-        self.run_async_task("Remove APK Protection", patch_remove_apk_protection, jar_path)
+        dlg = RemoveApkProtectionDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            params = dlg.get_parameters()
+            self.run_async_task(
+                "Remove APK Protection",
+                patch_remove_apk_protection,
+                jar_path,
+                disable_invoke_custom=params.get("remove_invoke_custom", False),
+            )
 
     def _action_jar_dss(self) -> None:
         proj = self._require_project()
@@ -644,7 +754,15 @@ class MainWindow(QMainWindow):
         jar_path = self._find_or_pick_services_jar(proj)
         if not jar_path:
             return
-        self.run_async_task("Disable Secure Screenshot (Android 17 Fix)", patch_disable_secure_screenshot, jar_path)
+        dlg = DisableSecureScreenshotDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            params = dlg.get_parameters()
+            self.run_async_task(
+                "Disable Secure Screenshot",
+                patch_disable_secure_screenshot,
+                jar_path,
+                disable_invoke_custom=params.get("remove_invoke_custom", False),
+            )
 
     def _find_or_pick_services_jar(self, proj: ProjectPaths) -> Path | None:
         candidates = [
@@ -665,16 +783,25 @@ class MainWindow(QMainWindow):
         proj = self._require_project()
         if not proj:
             return
-        vbmeta_path = proj.images / "vbmeta.img"
-        if not vbmeta_path.exists():
-            chosen, _ = QFileDialog.getOpenFileName(
-                self, "Select vbmeta.img", str(proj.images), "VBMeta (*.img);;All Files (*)"
-            )
-            if not chosen:
+        dlg = PatchVbmetaDialog(proj, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            params = dlg.get_parameters()
+            selected = params["selected_files"]
+            if not selected:
+                vbmeta_path = proj.images / "vbmeta.img"
+                if vbmeta_path.exists():
+                    selected = [vbmeta_path]
+            if not selected:
+                QMessageBox.warning(self, "No Selection", "Please select at least one vbmeta image to patch.")
                 return
-            vbmeta_path = Path(chosen)
 
-        self.run_async_task("Patch VBMeta Flags (disable-verity/verification)", patch_vbmeta, vbmeta_path, mode="both")
+            mode = params["mode"]
+
+            def _do_patch() -> None:
+                for f in selected:
+                    patch_vbmeta(f, mode=mode)
+
+            self.run_async_task(f"Patch VBMeta ({params['patch_type']})", _do_patch)
 
     def _action_patch_integrity(self) -> None:
         proj = self._require_project()
@@ -710,12 +837,10 @@ class MainWindow(QMainWindow):
         proj = self._require_project()
         if not proj:
             return
-        profile, ok = QInputDialog.getItem(
-            self, "Debloat Profile", "Choose debloat profile:", ["global", "china"], 0, False
-        )
-        if not ok or not profile:
-            return
-        self.run_async_task(f"Debloat ROM ({profile})", debloat_rom, proj.unpacked, profile=profile)
+        dlg = DebloatRomDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            profile = dlg.get_rom_type()
+            self.run_async_task(f"Debloat ROM ({profile})", debloat_rom, proj.unpacked, profile=profile)
 
     def _action_rom_remove_oat(self) -> None:
         proj = self._require_project()

@@ -188,6 +188,152 @@ class TestDnaGui(unittest.TestCase):
 
         win.close()
 
+    def test_custom_background_workflow(self) -> None:
+        """AboutDialog manages custom background and MainWindow renders pixmap."""
+        from dna_gui.widgets.dialogs import AboutDialog
+        about = AboutDialog()
+        self.assertIsNotNone(about.btn_choose_bg)
+        self.assertIsNotNone(about.btn_clear_bg)
+
+        signals_received = []
+        about.background_changed.connect(lambda p: signals_received.append(p))
+        about._clear_wallpaper()
+        self.assertIn("", signals_received)
+
+        # MainWindow background pixmap test
+        win = MainWindow()
+        with TemporaryDirectory() as tmpdir:
+            img_path = Path(tmpdir) / "test_bg.png"
+            from PyQt6.QtGui import QImage
+            img = QImage(100, 100, QImage.Format.Format_RGB32)
+            img.fill(Qt.GlobalColor.blue)
+            img.save(str(img_path))
+
+            win._load_background_image(str(img_path))
+            self.assertIsNotNone(win.background_pixmap)
+            self.assertFalse(win.background_pixmap.isNull())
+            win.repaint()
+
+            win._load_background_image(None)
+            self.assertIsNone(win.background_pixmap)
+
+        win.close()
+
+    def test_file_select_and_stepper_widgets(self) -> None:
+        """FileSelectField, NumberStepper, and CheckboxCard function correctly."""
+        from dna_gui.widgets.dialogs import CheckboxCard, FileSelectField, NumberStepper
+
+        # CheckboxCard
+        chk = CheckboxCard("Test Check", "Subtitle here", checked=True)
+        self.assertTrue(chk.is_checked())
+        chk.set_checked(False)
+        self.assertFalse(chk.is_checked())
+
+        # NumberStepper
+        stepper = NumberStepper(min_val=1, max_val=22, default_val=3)
+        self.assertEqual(stepper.get_value(), 3)
+        stepper._increment()
+        self.assertEqual(stepper.get_value(), 4)
+        stepper._decrement()
+        self.assertEqual(stepper.get_value(), 3)
+
+        # FileSelectField
+        f1 = Path("/tmp/a.img")
+        f2 = Path("/tmp/b.img")
+        field = FileSelectField(candidate_files=[f1, f2], subtitle="Hint text")
+        self.assertEqual(len(field.get_selected_files()), 0)
+        field.set_selected_files([f1])
+        self.assertEqual(field.get_selected_files(), [f1])
+        self.assertEqual(field.badge.text(), "1")
+
+    def test_extended_operation_dialogs(self) -> None:
+        """Instantiate and verify default parameters for all extended operation dialogs."""
+        from dna_gui.widgets.dialogs import (
+            CorePatchDsvDialog,
+            DebloatRomDialog,
+            DisableSecureScreenshotDialog,
+            ImgSimgDialog,
+            PatchVbmetaDialog,
+            RemoveApkProtectionDialog,
+            RepackSingleImgDialog,
+            RepackSuperDialog,
+            RepackZstdDialog,
+            UnpackImgDialog,
+            UnpackZstdDialog,
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            from dna_core.paths import ProjectPaths
+            proj_dir = Path(tmpdir)
+            p = ProjectPaths(project_dir=proj_dir)
+            p.images.mkdir(parents=True, exist_ok=True)
+            p.unpacked.mkdir(parents=True, exist_ok=True)
+            (p.images / "system.img").touch()
+            (p.images / "vendor.img").touch()
+            (p.images / "test.zst").touch()
+            (p.images / "vbmeta.img").touch()
+            (p.unpacked / "system").mkdir(parents=True, exist_ok=True)
+
+            # 1. UnpackImgDialog
+            d_unpack_img = UnpackImgDialog(proj=p)
+            self.assertFalse(d_unpack_img.get_delete_source())
+            self.assertGreaterEqual(len(d_unpack_img.file_picker.candidate_files), 1)
+
+            # 2. UnpackZstdDialog
+            d_unpack_zstd = UnpackZstdDialog(proj=p)
+            self.assertFalse(d_unpack_zstd.get_delete_source())
+            self.assertGreaterEqual(len(d_unpack_zstd.file_picker.candidate_files), 1)
+
+            # 3. RepackZstdDialog
+            d_repack_zstd = RepackZstdDialog(proj=p)
+            self.assertEqual(d_repack_zstd.get_compression_level(), 3)
+            self.assertFalse(d_repack_zstd.get_delete_source())
+
+            # 4. RepackSingleImgDialog
+            d_repack_single = RepackSingleImgDialog(proj=p)
+            params_single = d_repack_single.get_parameters()
+            self.assertEqual(params_single["partition"], "system")
+            self.assertEqual(params_single["fs_type"], "ext4")
+
+            # 5. RepackSuperDialog
+            d_repack_super = RepackSuperDialog(proj=p)
+            params_super = d_repack_super.get_parameters()
+            self.assertEqual(params_super["slot_type"], "virtual_ab")
+            self.assertTrue(params_super["sparse"])
+            self.assertGreater(params_super["device_size"], 0)
+
+            # 6. ImgSimgDialog
+            d_simg = ImgSimgDialog(proj=p)
+            params_simg = d_simg.get_parameters()
+            self.assertIn("Auto detect", params_simg["mode"])
+
+            # 7. CorePatchDsvDialog
+            d_dsv = CorePatchDsvDialog()
+            params_dsv = d_dsv.get_parameters()
+            self.assertEqual(params_dsv["android_version"], "Android 13+")
+            self.assertFalse(params_dsv["remove_invoke_custom"])
+
+            # 8. DisableSecureScreenshotDialog
+            d_dss = DisableSecureScreenshotDialog()
+            params_dss = d_dss.get_parameters()
+            self.assertEqual(params_dss["android_version"], "Android 13+")
+            self.assertFalse(params_dss["remove_invoke_custom"])
+
+            # 9. RemoveApkProtectionDialog
+            d_apk_prot = RemoveApkProtectionDialog()
+            params_apk = d_apk_prot.get_parameters()
+            self.assertEqual(params_apk["android_version"], "Android 13+")
+            self.assertFalse(params_apk["remove_invoke_custom"])
+
+            # 10. PatchVbmetaDialog
+            d_vbmeta = PatchVbmetaDialog(proj=p)
+            params_vbmeta = d_vbmeta.get_parameters()
+            self.assertEqual(params_vbmeta["mode"], "verity")
+            self.assertFalse(params_vbmeta["delete_source"])
+
+            # 11. DebloatRomDialog
+            d_debloat = DebloatRomDialog()
+            self.assertEqual(d_debloat.get_rom_type(), "global")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ class TestConfig(unittest.TestCase):
                 active_project="my_project",
                 auto_confirm=True,
                 verbose=True,
+                background_image="/tmp/wallpaper.jpg",
                 tool_overrides={"mke2fs": "/custom/bin/mke2fs"},
             )
             saved_path = cfg.save(cfg_file)
@@ -34,6 +35,7 @@ class TestConfig(unittest.TestCase):
             self.assertEqual(loaded.active_project, "my_project")
             self.assertTrue(loaded.auto_confirm)
             self.assertTrue(loaded.verbose)
+            self.assertEqual(loaded.background_image, "/tmp/wallpaper.jpg")
             self.assertEqual(loaded.tool_overrides.get("mke2fs"), "/custom/bin/mke2fs")
 
     def test_get_active_project_path(self):
