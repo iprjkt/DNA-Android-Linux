@@ -12,7 +12,7 @@ Tracking progress across phases as defined in `README.md`.
 | **Phase 1 — Foundation** | Project scaffold, packaging, `dna doctor`, config, `Paths`, project commands | **Completed** | Full Python 3.11+ scaffold (`dna_core`, `dna_cli`), `pyproject.toml`, native launcher `bin/dna`, `dna doctor`, `dna project create/select/delete/list`, `dna rom unzip`, and unit test suite (15/15 passing). |
 | **Phase 2 — Unpack / Repack / Convert** | Unpack bin/br/dat/img/zstd/super, repack img/zstd/super, format conversions | **Completed** | Full unpack/repack/convert pipeline. Magic-based filesystem auto-detection, ext4/erofs userspace extraction & repacking, SELinux/fs_config preservation, sdat2img/img2sdat, sparse conversions, super.img split/merge, resize2fs partition expansion, and 31/31 unit & round-trip tests passing. |
 | **Phase 3 — ROM Menu** | Debloat, remove oat, make ROM-RW, ROM decrypt | **Completed** | Data-driven debloat presets (global/china), oat directory cleanup, make-rw (fstab overlay and init cleanup), decrypt (force-encrypt removal), and 36/36 tests passing. |
-| **Phase 4 — Patch Menu** | vbmeta, integrity fix, SafetyCore, priv-app permissions, disable OTA, Xiaomi services | Pending | `build.prop` editor, AVB header patcher, SafetyCore placeholder. |
+| **Phase 4 — Patch Menu** | vbmeta, integrity fix, SafetyCore, priv-app permissions, disable OTA, Xiaomi services | **Completed** | Lossless `build.prop` editor (`PropFile`), AVB `vbmeta.img` flag patcher, Play Integrity spoofing, SafetyCore placeholder injector, Priv-App permissions removal, Xiaomi OTA disable, and Xiaomi telemetry/services cleanup. 59/59 unit tests passing. |
 | **Phase 5 — Jar Menu** | Core patch DSV, remove APK protection, disable secure screenshot | Pending | Descriptor-based smali patching with apktool/baksmali/smali. |
 | **Phase 6 — Plugins** | Plugin spec, importer, sandboxed execution, example plugin | Pending | TOML-based plugin format with sandboxed workspace execution. |
 | **Phase 7 — TUI** | Terminal UI mirroring Home -> Project Menu | Pending | Dark-themed Textual or curses interface. |
@@ -45,3 +45,13 @@ Tracking progress across phases as defined in `README.md`.
   - Decrypt ROM: Modifies `fileencryption=` options in `fstab*` to `fileencryptable` or strips force-encryption flags safely; dry-run verified.
   - CLI: `dna rom debloat`, `dna rom remove-oat`, `dna rom make-rw`, `dna rom decrypt` all functional with `--target` and `-n/--dry-run`.
   - Automated tests: 36/36 tests passing via `python3 -m unittest discover tests`.
+- **Phase 4 Verification**:
+  - `dna_core/prop.py`: Lossless Android `build.prop` parser and editor (`PropFile`), preserving comments, blank lines, section headers, in-place key updates, and search across nested partition trees.
+  - `dna patch vbmeta`: Direct AVB 2.0 header patching at offset 120 (big-endian flags: verity=1, verification=2, both=3, enable=0); verified against real live HyperOS `vbmeta.img` and confirmed with `avbtool info_image`.
+  - `dna patch integrity-fix`: Applies certified Pixel 7 Pro fingerprint (`google/cheetah/cheetah...`) and model properties across all `build.prop` files in unpacked project tree.
+  - `dna patch safetycore`: Injects bundled clean placeholder `Safetycore.apk` into `product/app/Safetycore/` with 0755/0644 permissions.
+  - `dna patch privapp-permissions`: Safely strips `ro.control_privapp_permissions` across build.prop files while preserving comment lines.
+  - `dna patch disable-ota`: Modifies Xiaomi `product/etc/device_features/*.xml` disabling `support_ota_validate`.
+  - `dna patch disable-xiaomi-services`: Data-driven removal via `data/patches/xiaomi_services.toml` targeting MIUIAnalytics, CloudService, Joyose, Daemon, MSA, MiuiTracking, MIService, and HybridPlatform.
+  - CLI: `dna patch vbmeta`, `dna patch integrity-fix`, `dna patch safetycore`, `dna patch privapp-permissions`, `dna patch disable-ota`, `dna patch disable-xiaomi-services` all functional with `--dry-run`.
+  - Automated tests: 59/59 tests passing via `python3 -m unittest discover tests`.

@@ -41,6 +41,7 @@ htmlcov/
 
 # ROM, partition images, archives, and binaries
 *.apk
+!data/safetycore/*.apk
 *.img
 *.bin
 *.dat

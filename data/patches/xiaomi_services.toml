@@ -1,0 +1,115 @@
+# Xiaomi / HyperOS Services and Telemetry Definitions
+# Used by `dna patch disable-xiaomi-services` to clean telemetry and background bloat
+
+[metadata]
+name = "xiaomi-services"
+description = "Xiaomi & HyperOS telemetry, daemon, ad services, and tracking packages"
+version = "1.0.0"
+
+[[packages]]
+name = "MIUIAnalytics"
+description = "Xiaomi user analytics, usage tracking, and data collection"
+paths = [
+    "product/app/MIUIAnalytics",
+    "product/priv-app/MIUIAnalytics",
+    "system/app/MIUIAnalytics",
+    "system/priv-app/MIUIAnalytics",
+    "system_ext/app/MIUIAnalytics",
+    "system_ext/priv-app/MIUIAnalytics",
+    "system/app/AnalyticsCore",
+    "system/priv-app/AnalyticsCore",
+]
+
+[[packages]]
+name = "CloudService"
+description = "Xiaomi Cloud syncing and background upload services"
+paths = [
+    "product/app/CloudService",
+    "product/priv-app/CloudService",
+    "system/app/CloudService",
+    "system/priv-app/CloudService",
+    "system_ext/app/CloudService",
+    "system_ext/priv-app/CloudService",
+]
+
+[[packages]]
+name = "Joyose"
+description = "Xiaomi game and performance throttling daemon with usage telemetry"
+paths = [
+    "product/app/Joyose",
+    "product/priv-app/Joyose",
+    "system/app/Joyose",
+    "system/priv-app/Joyose",
+    "system_ext/app/Joyose",
+    "system_ext/priv-app/Joyose",
+]
+
+[[packages]]
+name = "MiDaemon"
+description = "Xiaomi system telemetry daemon process"
+paths = [
+    "product/app/MiDaemon",
+    "product/priv-app/MiDaemon",
+    "system/app/MiDaemon",
+    "system/priv-app/MiDaemon",
+    "system_ext/app/MiDaemon",
+    "system_ext/priv-app/MiDaemon",
+    "system/app/Daemon",
+    "system/priv-app/Daemon",
+]
+
+[[packages]]
+name = "MSA"
+description = "MIUI System Ads service"
+paths = [
+    "product/app/MSA-Global",
+    "product/priv-app/MSA-Global",
+    "product/app/MSA",
+    "product/priv-app/MSA",
+    "system/app/MSA-Global",
+    "system/priv-app/MSA-Global",
+    "system/app/MSA",
+    "system/priv-app/MSA",
+]
+
+[[packages]]
+name = "MiuiTracking"
+description = "Xiaomi device tracking and reporting services"
+paths = [
+    "product/app/MiuiTracking",
+    "product/priv-app/MiuiTracking",
+    "system/app/MiuiTracking",
+    "system/priv-app/MiuiTracking",
+]
+
+[[packages]]
+name = "MIService"
+description = "Xiaomi background feedback and diagnosis services"
+paths = [
+    "product/app/MIService",
+    "product/priv-app/MIService",
+    "system/app/MIService",
+    "system/priv-app/MIService",
+]
+
+[[packages]]
+name = "HybridPlatform"
+description = "Quick Apps platform with telemetry and push ad capabilities"
+paths = [
+    "product/app/HybridPlatform",
+    "product/priv-app/HybridPlatform",
+    "system/app/HybridPlatform",
+    "system/priv-app/HybridPlatform",
+    "product/app/HybridAccessory",
+    "product/priv-app/HybridAccessory",
+]
+
+[[packages]]
+name = "MiLinkService"
+description = "Xiaomi link and cross-device sharing background service"
+paths = [
+    "product/app/MiLinkService",
+    "product/priv-app/MiLinkService",
+    "system/app/MiLinkService",
+    "system/priv-app/MiLinkService",
+]
