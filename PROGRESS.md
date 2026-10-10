@@ -11,7 +11,7 @@ Tracking progress across phases as defined in `README.md`.
 | **Phase 0 — Recon** | APK inspection, menu/command mapping, docs | **Completed** | Discovered all commands, scripts, assets, and mapped to Linux equivalents. Produced `docs/FEATURES.md` and `docs/DECISIONS.md`. |
 | **Phase 1 — Foundation** | Project scaffold, packaging, `dna doctor`, config, `Paths`, project commands | **Completed** | Full Python 3.11+ scaffold (`dna_core`, `dna_cli`), `pyproject.toml`, native launcher `bin/dna`, `dna doctor`, `dna project create/select/delete/list`, `dna rom unzip`, and unit test suite (15/15 passing). |
 | **Phase 2 — Unpack / Repack / Convert** | Unpack bin/br/dat/img/zstd/super, repack img/zstd/super, format conversions | **Completed** | Full unpack/repack/convert pipeline. Magic-based filesystem auto-detection, ext4/erofs userspace extraction & repacking, SELinux/fs_config preservation, sdat2img/img2sdat, sparse conversions, super.img split/merge, resize2fs partition expansion, and 31/31 unit & round-trip tests passing. |
-| **Phase 3 — ROM Menu** | Debloat, remove oat, make ROM-RW, ROM decrypt | Pending | Data-driven debloat lists, fstab modifications, oat directory cleanup. |
+| **Phase 3 — ROM Menu** | Debloat, remove oat, make ROM-RW, ROM decrypt | **Completed** | Data-driven debloat presets (global/china), oat directory cleanup, make-rw (fstab overlay and init cleanup), decrypt (force-encrypt removal), and 36/36 tests passing. |
 | **Phase 4 — Patch Menu** | vbmeta, integrity fix, SafetyCore, priv-app permissions, disable OTA, Xiaomi services | Pending | `build.prop` editor, AVB header patcher, SafetyCore placeholder. |
 | **Phase 5 — Jar Menu** | Core patch DSV, remove APK protection, disable secure screenshot | Pending | Descriptor-based smali patching with apktool/baksmali/smali. |
 | **Phase 6 — Plugins** | Plugin spec, importer, sandboxed execution, example plugin | Pending | TOML-based plugin format with sandboxed workspace execution. |
@@ -38,3 +38,10 @@ Tracking progress across phases as defined in `README.md`.
   - Sparse <-> raw conversions, `sdat2img` / `img2sdat` round-trip, and `super.img` split/merge verified.
   - Partition resizing (`resize2fs`) verified on ext4.
   - Automated tests: 31/31 tests passing via `python3 -m unittest discover tests`.
+- **Phase 3 Verification**:
+  - Debloat: `data/debloat/global.toml` and `china.toml` loaded cleanly; dry-run and actual removal verified with directory scanning.
+  - Remove OAT: Scans and removes all `oat` directories inside partition hierarchies; dry-run and execution verified.
+  - Make ROM-RW: Strips overlay mount lines from `fstab*` files, unshares ext4 blocks via `e2fsck -E unshare_blocks` when needed, removes `init.miui.mi_ext.rc` and overlay init scripts; dry-run verified.
+  - Decrypt ROM: Modifies `fileencryption=` options in `fstab*` to `fileencryptable` or strips force-encryption flags safely; dry-run verified.
+  - CLI: `dna rom debloat`, `dna rom remove-oat`, `dna rom make-rw`, `dna rom decrypt` all functional with `--target` and `-n/--dry-run`.
+  - Automated tests: 36/36 tests passing via `python3 -m unittest discover tests`.

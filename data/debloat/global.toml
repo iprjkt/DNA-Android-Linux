@@ -1,0 +1,115 @@
+# DNA-Linux Debloat Preset: MIUI / HyperOS Global
+# Compatible with MIUI 13/14 and HyperOS 1.0 / 2.0 / 2.0.2
+
+[metadata]
+name = "global"
+title = "MIUI / HyperOS Global Debloat"
+description = "Safely removes telemetry, analytics, ad services, and redundant OEM bloatware from Global ROMs."
+
+[[packages]]
+name = "Analytics"
+description = "MIUI Analytics telemetry service"
+patterns = [
+    "*/app/Analytics",
+    "*/priv-app/Analytics",
+    "*/app/MIUIAnalytics",
+    "*/priv-app/MIUIAnalytics"
+]
+
+[[packages]]
+name = "MSA (MIUI System Ads)"
+description = "MIUI System Ads daemon"
+patterns = [
+    "*/app/MSA",
+    "*/priv-app/MSA",
+    "*/app/MSA-Global",
+    "*/priv-app/MSA-Global"
+]
+
+[[packages]]
+name = "YellowPage"
+description = "MIUI YellowPages directory caller identification"
+patterns = [
+    "*/app/YellowPage",
+    "*/priv-app/YellowPage"
+]
+
+[[packages]]
+name = "BugReport"
+description = "OEM automatic crash and bug report uploader"
+patterns = [
+    "*/app/BugReport",
+    "*/priv-app/BugReport",
+    "*/app/MiuiBugReport"
+]
+
+[[packages]]
+name = "MiService / Feedback"
+description = "Xiaomi user feedback service"
+patterns = [
+    "*/app/MiService",
+    "*/priv-app/MiService"
+]
+
+[[packages]]
+name = "Joyose"
+description = "Xiaomi gaming and background telemetry scheduler"
+patterns = [
+    "*/app/Joyose",
+    "*/priv-app/Joyose"
+]
+
+[[packages]]
+name = "Hybrid Platform"
+description = "Quick Apps / Hybrid Platform telemetry"
+patterns = [
+    "*/app/HybridPlatform",
+    "*/priv-app/HybridPlatform",
+    "*/app/HybridAccessory",
+    "*/priv-app/HybridAccessory"
+]
+
+[[packages]]
+name = "Facebook Services"
+description = "Pre-installed Facebook services and app manager"
+patterns = [
+    "*/app/FBAppManager",
+    "*/priv-app/FBAppManager",
+    "*/app/FBInstaller",
+    "*/priv-app/FBInstaller",
+    "*/app/FBServices",
+    "*/priv-app/FBServices"
+]
+
+[[packages]]
+name = "Payment Services"
+description = "Xiaomi payment and wallet services"
+patterns = [
+    "*/app/PaymentService",
+    "*/priv-app/PaymentService",
+    "*/app/Micoin"
+]
+
+[[packages]]
+name = "MiBrowser"
+description = "Xiaomi stock browser"
+patterns = [
+    "*/app/Browser",
+    "*/priv-app/Browser"
+]
+
+[[packages]]
+name = "MiVideo"
+description = "Xiaomi stock video player"
+patterns = [
+    "*/app/Video",
+    "*/priv-app/Video"
+]
+
+[[packages]]
+name = "MiMusic"
+description = "Xiaomi stock music player with streaming ads"
+patterns = [
+    "*/app/Music",
+    "*/priv-app/Music"
+]
