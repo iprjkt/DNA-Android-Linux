@@ -88,3 +88,17 @@ def get_active_project_path(config: GlobalConfig | None = None) -> Path | None:
         return prefixed_match.resolve()
 
     return None
+
+
+def get_active_project_name(config: GlobalConfig | None = None) -> str | None:
+    """Return the name of the currently active project, or None."""
+    cfg = config or GlobalConfig.load()
+    return cfg.active_project
+
+
+def set_active_project_name(name: str | None, config_path: Path | None = None) -> None:
+    """Update and persist the active project name."""
+    cfg = GlobalConfig.load(config_path)
+    cfg.active_project = name
+    cfg.save(config_path)
+
