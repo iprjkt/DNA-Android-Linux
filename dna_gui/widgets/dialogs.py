@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QPainter
 from PyQt6.QtWidgets import (
+    QAbstractButton,
     QDialog,
-    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -32,6 +32,135 @@ from dna_core.project import (
     select_project,
 )
 from dna_core.tools import run_doctor
+
+
+class ToggleSwitch(QAbstractButton):
+    """Sleek iOS/Android style toggle switch matching the DNA-Android About dialog."""
+
+    def __init__(self, parent: QWidget | None = None, checked: bool = False) -> None:
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setChecked(checked)
+        self.setFixedSize(48, 26)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def paintEvent(self, event: Any) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect()
+
+        # Track background
+        track_color = QColor("#3b82f6") if self.isChecked() else QColor("#334155")
+        painter.setBrush(track_color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRoundedRect(rect, 13, 13)
+
+        # Thumb
+        thumb_color = QColor("#ffffff")
+        painter.setBrush(thumb_color)
+        thumb_x = rect.width() - 23 if self.isChecked() else 3
+        painter.drawEllipse(thumb_x, 3, 20, 20)
+
+
+class AboutDialog(QDialog):
+    """Project Information and About dialog precisely matching Screenshot_2026-10-10-19-24-34-841_com.dna.tools.jpg."""
+
+    transparent_toggled = pyqtSignal(bool)
+
+    def __init__(self, parent: QWidget | None = None, is_transparent: bool = False) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("About DNA")
+        self.setFixedSize(460, 310)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setStyleSheet(
+            "QDialog {"
+            "   background-color: #16171b;"
+            "   border: 1px solid #282a35;"
+            "   border-radius: 20px;"
+            "}"
+            "QLabel { background: transparent; }"
+        )
+
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
+
+        # Top section: "About · DNA" and "Version : 250511"
+        top_layout = QVBoxLayout()
+        top_layout.setSpacing(4)
+
+        header_lbl = QLabel("About · DNA")
+        header_lbl.setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 500;")
+        top_layout.addWidget(header_lbl)
+
+        ver_layout = QHBoxLayout()
+        ver_layout.setSpacing(4)
+        ver_title = QLabel("Version : ")
+        ver_title.setStyleSheet("color: #60a5fa; font-size: 13px; font-weight: 600;")
+        ver_val = QLabel("250511 (1.0.0-linux)")
+        ver_val.setStyleSheet("color: #3b82f6; font-size: 13px; font-weight: 600;")
+        ver_layout.addWidget(ver_title)
+        ver_layout.addWidget(ver_val)
+        ver_layout.addStretch(1)
+        top_layout.addLayout(ver_layout)
+
+        layout.addLayout(top_layout)
+        layout.addStretch(1)
+
+        # Center section: Stylized Title "D·N·A-Android" + Author
+        center_layout = QVBoxLayout()
+        center_layout.setSpacing(8)
+        center_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        title_lbl = QLabel("D·N·A-Android")
+        title_font = QFont()
+        title_font.setPointSize(24)
+        title_font.setBold(True)
+        title_lbl.setFont(title_font)
+        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Amber / golden color matching the original screenshot
+        title_lbl.setStyleSheet("color: #b45309; letter-spacing: 1.5px; font-weight: 800;")
+        center_layout.addWidget(title_lbl)
+
+        author_lbl = QLabel("Author : tao1996, Meeting is fate")
+        author_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        author_lbl.setStyleSheet("color: #e2e8f0; font-size: 13px; font-weight: 500;")
+        center_layout.addWidget(author_lbl)
+
+        port_lbl = QLabel("Linux Port : @iprjkt | Native x86_64 toolchain")
+        port_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        port_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
+        center_layout.addWidget(port_lbl)
+
+        layout.addLayout(center_layout)
+        layout.addStretch(1)
+
+        # Bottom section: "Transparent UI" [Toggle] ... "Based on [Kr-Script4.0.3] creation"
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+
+        left_bottom = QHBoxLayout()
+        left_bottom.setSpacing(8)
+        trans_lbl = QLabel("Transparent UI")
+        trans_lbl.setStyleSheet("color: #cbd5e1; font-size: 12px; font-weight: 500;")
+        self.toggle = ToggleSwitch(self, checked=is_transparent)
+        self.toggle.toggled.connect(self._on_toggle)
+        left_bottom.addWidget(trans_lbl)
+        left_bottom.addWidget(self.toggle)
+        bottom_layout.addLayout(left_bottom)
+
+        bottom_layout.addStretch(1)
+
+        kr_lbl = QLabel("Based on [Kr-Script4.0.3] creation")
+        kr_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
+        bottom_layout.addWidget(kr_lbl)
+
+        layout.addLayout(bottom_layout)
+
+    def _on_toggle(self, checked: bool) -> None:
+        self.transparent_toggled.emit(checked)
+
 
 
 class ConfirmDialog(QDialog):
@@ -255,6 +384,87 @@ class SelectProjectDialog(QDialog):
             try:
                 delete_project(p_name)
                 self.refresh_list()
+            except Exception as exc:
+                QMessageBox.critical(self, "Delete Error", str(exc))
+
+
+class DeleteProjectDialog(QDialog):
+    """Dedicated modal for deleting project workspaces in ~/DNA."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Delete Project")
+        self.setFixedSize(480, 400)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        header_lbl = QLabel("Select project in ~/DNA to delete:")
+        header_font = QFont()
+        header_font.setPointSize(12)
+        header_font.setBold(True)
+        header_lbl.setFont(header_font)
+        header_lbl.setStyleSheet("color: #ffffff;")
+        layout.addWidget(header_lbl)
+
+        self.list_widget = QListWidget()
+        self.list_widget.setStyleSheet(
+            "QListWidget { background-color: #14161f; border: 1px solid #252837; border-radius: 8px; padding: 6px; }"
+            "QListWidget::item { padding: 10px; border-radius: 6px; margin: 2px 0px; }"
+            "QListWidget::item:selected { background-color: #7f1d1d; color: #ffffff; }"
+        )
+        layout.addWidget(self.list_widget, stretch=1)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch(1)
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+
+        self.delete_btn = QPushButton("Delete Project")
+        self.delete_btn.setObjectName("btn_danger")
+        self.delete_btn.clicked.connect(self._delete_selected)
+        btn_layout.addWidget(self.delete_btn)
+
+        layout.addLayout(btn_layout)
+        self.refresh_list()
+
+    def refresh_list(self) -> None:
+        self.list_widget.clear()
+        projects = list_projects()
+        active = get_active_project()
+        active_name = active.name if active else None
+
+        for p, is_act in projects:
+            p_name = p.name
+            display_text = f"📁 {p_name}"
+            if active_name and p_name == active_name:
+                display_text += " [Active]"
+            item = QListWidgetItem(display_text)
+            item.setData(Qt.ItemDataRole.UserRole, p_name)
+            self.list_widget.addItem(item)
+
+    def _delete_selected(self) -> None:
+        curr = self.list_widget.currentItem()
+        if not curr:
+            QMessageBox.warning(self, "No Selection", "Please select a project to delete.")
+            return
+        p_name = curr.data(Qt.ItemDataRole.UserRole)
+        confirm = ConfirmDialog(
+            "Delete Project",
+            f"Are you sure you want to permanently delete project '{p_name}' and all its files from ~/DNA?",
+            confirm_text="Delete Permanently",
+            is_danger=True,
+            parent=self,
+        )
+        if confirm.exec() == QDialog.DialogCode.Accepted:
+            try:
+                delete_project(p_name)
+                self.refresh_list()
+                self.accept()
             except Exception as exc:
                 QMessageBox.critical(self, "Delete Error", str(exc))
 

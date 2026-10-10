@@ -1,11 +1,12 @@
-"""Interactive real-time execution console and progress drawer widget."""
+"""Interactive real-time execution log and terminal widget matching original DNA-Android UI."""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -17,107 +18,175 @@ from PyQt6.QtWidgets import (
 
 
 class ConsoleWidget(QWidget):
-    """Bottom collapsible console drawer displaying live logs, task progress, and controls."""
+    """Right-side log view precisely mirroring Screenshot_2026-10-10-19-24-56-881_com.dna.tools.jpg
+
+    and Screenshot_2026-10-10-19-25-26-527_com.dna.tools.jpg.
+    """
 
     close_clicked = pyqtSignal()
+    exit_clicked = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(220)
-        self.setStyleSheet(
-            "background-color: #0b0c10;"
-            "border-top: 2px solid #1e2230;"
-        )
+        self.setStyleSheet("background: transparent;")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 10, 12, 12)
+        layout.setSpacing(10)
 
-        # Header bar of console
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        # 1. Action Title Header
+        self.task_title = QLabel("DNA-Android Terminal")
+        title_font = QFont()
+        title_font.setPointSize(15)
+        title_font.setBold(True)
+        self.task_title.setFont(title_font)
+        self.task_title.setStyleSheet("color: #ffffff; background: transparent; padding-left: 2px;")
+        layout.addWidget(self.task_title)
 
-        self.status_icon = QLabel("●")
-        self.status_icon.setStyleSheet("color: #10b981; font-size: 14px;")
-        header_layout.addWidget(self.status_icon)
-
-        self.status_label = QLabel("Console Output (Ready)")
-        status_font = QFont()
-        status_font.setPointSize(10)
-        status_font.setBold(True)
-        self.status_label.setFont(status_font)
-        self.status_label.setStyleSheet("color: #e2e8f0;")
-        header_layout.addWidget(self.status_label)
-
-        header_layout.addStretch(1)
-
-        # Clear button
-        self.clear_btn = QPushButton("Clear")
-        self.clear_btn.setStyleSheet("font-size: 11px; padding: 3px 8px;")
-        self.clear_btn.clicked.connect(self.clear_logs)
-        header_layout.addWidget(self.clear_btn)
-
-        # Copy button
-        self.copy_btn = QPushButton("Copy")
-        self.copy_btn.setStyleSheet("font-size: 11px; padding: 3px 8px;")
-        self.copy_btn.clicked.connect(self.copy_logs)
-        header_layout.addWidget(self.copy_btn)
-
-        # Hide button
-        self.hide_btn = QPushButton("✕")
-        self.hide_btn.setFixedSize(24, 24)
-        self.hide_btn.setToolTip("Hide Console Drawer")
-        self.hide_btn.setStyleSheet(
-            "QPushButton { background: transparent; border: none; color: #94a3b8; font-weight: bold; font-size: 12px; }"
-            "QPushButton:hover { color: #f87171; background: #261619; border-radius: 4px; }"
-        )
-        self.hide_btn.clicked.connect(self.close_clicked.emit)
-        header_layout.addWidget(self.hide_btn)
-
-        layout.addLayout(header_layout)
-
-        # Progress bar
+        # 2. Sleek Horizontal Progress Accent Line
         self.progress_bar = QProgressBar()
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setObjectName("log_progress")
+        self.progress_bar.setFixedHeight(3)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
+        self.progress_bar.setValue(100)
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
-        # Log viewer
+        # 3. Main Dark Terminal Card
+        self.log_card = QFrame()
+        self.log_card.setObjectName("log_card")
+        card_layout = QVBoxLayout(self.log_card)
+        card_layout.setContentsMargins(14, 14, 14, 14)
+        card_layout.setSpacing(0)
+
         self.text_edit = QPlainTextEdit()
         self.text_edit.setObjectName("console_output")
         self.text_edit.setReadOnly(True)
-        self.text_edit.setMaximumBlockCount(3000)
-        layout.addWidget(self.text_edit, stretch=1)
+        self.text_edit.setMaximumBlockCount(5000)
+        card_layout.addWidget(self.text_edit)
+
+        layout.addWidget(self.log_card, stretch=1)
+
+        # 4. Bottom Action Buttons: [ COPY THE OUTPUT ]  [ EXIT ]
+        self.btn_layout = QHBoxLayout()
+        self.btn_layout.setContentsMargins(0, 4, 0, 0)
+        self.btn_layout.setSpacing(12)
+
+        self.copy_btn = QPushButton("COPY THE OUTPUT")
+        self.copy_btn.setObjectName("btn_copy_output")
+        self.copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.copy_btn.setStyleSheet(
+            "QPushButton {"
+            "   background-color: #1a1e28;"
+            "   color: #3b82f6;"
+            "   border: 1px solid #283042;"
+            "   border-radius: 22px;"
+            "   font-size: 12px;"
+            "   font-weight: 700;"
+            "   letter-spacing: 0.5px;"
+            "   padding: 10px 18px;"
+            "   min-height: 42px;"
+            "}"
+            "QPushButton:hover { background-color: #242938; color: #60a5fa; border-color: #3b82f6; }"
+            "QPushButton:pressed { background-color: #151821; }"
+        )
+        self.copy_btn.clicked.connect(self.copy_logs)
+        self.btn_layout.addWidget(self.copy_btn, stretch=1)
+
+        self.exit_btn = QPushButton("EXIT")
+        self.exit_btn.setObjectName("btn_exit_log")
+        self.exit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.exit_btn.setStyleSheet(
+            "QPushButton {"
+            "   background-color: #2563eb;"
+            "   color: #ffffff;"
+            "   border: none;"
+            "   border-radius: 22px;"
+            "   font-size: 12px;"
+            "   font-weight: 700;"
+            "   letter-spacing: 0.5px;"
+            "   padding: 10px 18px;"
+            "   min-height: 42px;"
+            "}"
+            "QPushButton:hover { background-color: #1d4ed8; }"
+            "QPushButton:pressed { background-color: #1e40af; }"
+        )
+        self.exit_btn.clicked.connect(self._on_exit_clicked)
+        self.exit_btn.setVisible(False)
+        self.btn_layout.addWidget(self.exit_btn, stretch=1)
+
+
+        layout.addLayout(self.btn_layout)
 
     def append_log(self, text: str) -> None:
-        """Append log message and auto-scroll to the bottom."""
-        self.text_edit.appendPlainText(text)
+        """Append log line with '> ' prefix formatting and auto-scroll to the end."""
+        if not text:
+            return
+
+        lines = text.splitlines()
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                self.text_edit.appendPlainText("")
+                continue
+
+            # Format like the original DNA-Android output
+            if (
+                line_stripped.startswith(">")
+                or line_stripped.startswith("[")
+                or "Script execution" in line_stripped
+            ):
+                formatted = line_stripped
+            else:
+                formatted = f"> {line_stripped}"
+
+            self.text_edit.appendPlainText(formatted)
+
         self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
 
     def set_status(self, text: str, running: bool = False, error: bool = False) -> None:
-        """Update console status title and status icon color."""
-        self.status_label.setText(text)
-        if error:
-            self.status_icon.setStyleSheet("color: #ef4444; font-size: 14px;")
-            self.progress_bar.setVisible(False)
-        elif running:
-            self.status_icon.setStyleSheet("color: #3b82f6; font-size: 14px;")
-            self.progress_bar.setRange(0, 0)  # Indeterminate pulse
+        """Update action title and progress bar state matching the original Android behavior."""
+        self.task_title.setText(text)
+        if running:
+            self.progress_bar.setRange(0, 0)  # Smooth indeterminate pulse
             self.progress_bar.setVisible(True)
+            self.exit_btn.setVisible(False)
+            self.copy_btn.setText("COPY THE OUTPUT")
         else:
-            self.status_icon.setStyleSheet("color: #10b981; font-size: 14px;")
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(100)
             self.progress_bar.setVisible(False)
+            self.exit_btn.setVisible(True)
+            if not error and self.text_edit.toPlainText():
+                # Append standard completion note if not already present
+                plain = self.text_edit.toPlainText().strip()
+                if not plain.endswith("Script execution completed"):
+                    self.text_edit.appendPlainText("Script execution completed")
+                    self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
 
     def clear_logs(self) -> None:
+        """Clear all terminal text and reset view to initial state."""
         self.text_edit.clear()
+        self.task_title.setText("DNA-Android Terminal")
+        self.progress_bar.setVisible(False)
+        self.exit_btn.setVisible(False)
+        self.copy_btn.setText("COPY THE OUTPUT")
 
     def copy_logs(self) -> None:
+        """Copy full log content to system clipboard with visual button confirmation."""
         clipboard = QApplication.clipboard()
         if clipboard:
             clipboard.setText(self.text_edit.toPlainText())
-            self.append_log("[System] Logs copied to clipboard.")
+            self.copy_btn.setText("COPIED TO CLIPBOARD")
+            QTimer.singleShot(1500, lambda: self.copy_btn.setText("COPY THE OUTPUT"))
+
+    def _on_exit_clicked(self) -> None:
+        """Handle EXIT button click: reset console output and emit exit signal."""
+        self.clear_logs()
+        self.exit_clicked.emit()
+        self.close_clicked.emit()
+
+
+# Alias for backwards compatibility
+LogWidget = ConsoleWidget

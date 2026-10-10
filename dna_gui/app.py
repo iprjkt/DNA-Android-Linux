@@ -7,12 +7,14 @@ import sys
 from typing import Any, Callable
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
     QInputDialog,
     QMainWindow,
     QMessageBox,
+    QSplitter,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -59,27 +61,38 @@ from dna_gui.views.home_view import HomeView
 from dna_gui.views.plugins_view import PluginsView
 from dna_gui.views.project_view import ProjectView
 from dna_gui.widgets.console import ConsoleWidget
-from dna_gui.widgets.dialogs import ConfirmDialog, DoctorDialog, InputDialog, SelectProjectDialog
+from dna_gui.widgets.dialogs import (
+    AboutDialog,
+    ConfirmDialog,
+    DeleteProjectDialog,
+    DoctorDialog,
+    InputDialog,
+    SelectProjectDialog,
+)
 from dna_gui.widgets.header import HeaderWidget
 from dna_gui.worker import WorkerThread
 
 
 class MainWindow(QMainWindow):
-    """Primary desktop window hosting screens, worker thread, and console drawer."""
+    """Primary desktop window hosting navigation screens, worker thread, and right-side log terminal."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("DNA-Linux — Android ROM Toolkit")
-        self.resize(780, 860)
-        self.setMinimumSize(680, 700)
+        self.setWindowTitle("DNA-Android — Android ROM Toolkit")
+        self.resize(1120, 780)
+        self.setMinimumSize(880, 600)
 
         self.worker: WorkerThread | None = None
+        self.is_transparent_ui: bool = False
         self.setStyleSheet(DARK_THEME_QSS)
 
-        icon_path = Path(__file__).resolve().parent.parent / "data" / "icons" / "dna.svg"
-        if icon_path.exists():
-            from PyQt6.QtGui import QIcon
-            self.setWindowIcon(QIcon(str(icon_path)))
+        # Set original DNA-Android logo
+        icon_png = Path(__file__).resolve().parent.parent / "data" / "icons" / "dna.png"
+        icon_svg = Path(__file__).resolve().parent.parent / "data" / "icons" / "dna.svg"
+        if icon_png.exists():
+            self.setWindowIcon(QIcon(str(icon_png)))
+        elif icon_svg.exists():
+            self.setWindowIcon(QIcon(str(icon_svg)))
 
         # Central layout
         central_widget = QWidget()
@@ -88,25 +101,35 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Header
+        # Top Navigation Header
         self.header = HeaderWidget(self)
         self.header.back_clicked.connect(self._on_back_clicked)
         self.header.project_badge_clicked.connect(self._open_project_selector)
         self.header.doctor_clicked.connect(self._open_doctor)
-        self.header.console_toggle_clicked.connect(self._toggle_console)
+        self.header.info_clicked.connect(self._open_about)
         self.header.quit_clicked.connect(self.close)
         main_layout.addWidget(self.header)
 
-        # Screen Stack
+        # Horizontal Splitter: Left Navigation Stack | Right Log Terminal UI
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setContentsMargins(12, 10, 12, 12)
+        self.splitter.setHandleWidth(6)
+
+        # Left Container for Stacked Screens
+        left_container = QWidget()
+        left_layout = QVBoxLayout(left_container)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+
         self.stack = QStackedWidget()
-        main_layout.addWidget(self.stack, stretch=1)
+        left_layout.addWidget(self.stack)
+        self.splitter.addWidget(left_container)
 
         # View 0: HomeView
         self.home_view = HomeView()
         self.home_view.navigate_project_menu.connect(lambda: self._switch_view(1, "Project Menu"))
         self.home_view.request_select_project.connect(self._open_project_selector)
         self.home_view.request_create_project.connect(self._open_project_creator)
-        self.home_view.request_delete_project.connect(self._open_project_selector)
+        self.home_view.request_delete_project.connect(self._open_project_deleter)
         self.home_view.request_unzip_rom.connect(self._action_unzip_rom)
         self.stack.addWidget(self.home_view)
 
@@ -121,11 +144,17 @@ class MainWindow(QMainWindow):
         self.plugins_view.request_run_plugin.connect(self._action_run_plugin)
         self.stack.addWidget(self.plugins_view)
 
-        # Console Drawer at bottom
+        # Right Side Log Terminal (mirroring Screenshot_2026-10-10-19-24-56-881_com.dna.tools.jpg)
         self.console = ConsoleWidget(self)
-        self.console.close_clicked.connect(lambda: self.console.setVisible(False))
-        self.console.setVisible(False)
-        main_layout.addWidget(self.console)
+        self.splitter.addWidget(self.console)
+
+        self.splitter.setStretchFactor(0, 5)
+        self.splitter.setStretchFactor(1, 6)
+        self.splitter.setSizes([480, 580])
+        self.splitter.setChildrenCollapsible(False)
+
+        main_layout.addWidget(self.splitter, stretch=1)
+
 
         # Sync active project on launch
         self._refresh_active_project_state()
@@ -140,10 +169,19 @@ class MainWindow(QMainWindow):
         if curr == 2:
             self._switch_view(1, "Project Menu")
         elif curr == 1:
-            self._switch_view(0, "DNA-Linux")
+            self._switch_view(0, "DNA-Android")
 
-    def _toggle_console(self) -> None:
-        self.console.setVisible(not self.console.isVisible())
+    def _open_about(self) -> None:
+        dlg = AboutDialog(self, is_transparent=self.is_transparent_ui)
+        dlg.transparent_toggled.connect(self._on_transparent_toggled)
+        dlg.exec()
+
+    def _on_transparent_toggled(self, enabled: bool) -> None:
+        self.is_transparent_ui = enabled
+        if enabled:
+            self.setWindowOpacity(0.93)
+        else:
+            self.setWindowOpacity(1.0)
 
     def _refresh_active_project_state(self) -> None:
         active = get_active_project()
@@ -159,7 +197,7 @@ class MainWindow(QMainWindow):
     def _open_project_creator(self) -> None:
         dlg = InputDialog(
             "Create New Project",
-            "Enter new project name (e.g. 'myrom' or 'hyperos'):",
+            "Enter new project name (e.g. 'myrom' or 'hyperos'):\nProject will be created under ~/DNA",
             placeholder="my_project",
             parent=self,
         )
@@ -167,11 +205,20 @@ class MainWindow(QMainWindow):
             val = dlg.get_value()
             if val:
                 try:
-                    create_project(val)
+                    proj = create_project(val)
                     self._refresh_active_project_state()
-                    QMessageBox.information(self, "Project Created", f"Created and activated project '{val}'!")
+                    QMessageBox.information(
+                        self,
+                        "Project Created",
+                        f"Created and activated project '{proj.name}' in ~/DNA!",
+                    )
                 except Exception as exc:
                     QMessageBox.critical(self, "Creation Error", str(exc))
+
+    def _open_project_deleter(self) -> None:
+        dlg = DeleteProjectDialog(self)
+        if dlg.exec() == DeleteProjectDialog.DialogCode.Accepted:
+            self._refresh_active_project_state()
 
     def _open_doctor(self) -> None:
         dlg = DoctorDialog(self)
@@ -201,9 +248,8 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Ensure console is visible
-        self.console.setVisible(True)
-        self.console.set_status(f"Running: {task_name}...", running=True)
+        self.console.set_status(task_name, running=True)
+        self.console.append_log(f"> Task started: {task_name}")
 
         self.worker = WorkerThread(task_name, target, *args, **kwargs)
         self.worker.log_signal.connect(self.console.append_log)
@@ -212,15 +258,14 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def _on_task_finished(self, task_name: str, result: Any) -> None:
-        self.console.set_status(f"Finished: {task_name}", running=False, error=False)
-        self.console.append_log(f"[Success] {task_name} completed successfully.")
-        QMessageBox.information(self, "Task Finished", f"Successfully completed: {task_name}!")
+        self.console.set_status(task_name, running=False, error=False)
         self._refresh_active_project_state()
 
     def _on_task_failed(self, task_name: str, error_msg: str) -> None:
-        self.console.set_status(f"Failed: {task_name}", running=False, error=True)
+        self.console.set_status(task_name, running=False, error=True)
         self.console.append_log(f"[Error] {task_name} failed: {error_msg}")
         QMessageBox.critical(self, "Task Failed", f"{task_name} encountered an error:\n\n{error_msg}")
+
 
     # -----------------------------------------------------------------
     # Home View Actions

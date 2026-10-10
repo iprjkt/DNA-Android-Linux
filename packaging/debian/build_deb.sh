@@ -52,6 +52,9 @@ chmod 755 "${DEB_ROOT}/usr/bin/dna-gui"
 # 3. Desktop Entry & Icon
 cp "${REPO_DIR}/data/dna.desktop" "${DEB_ROOT}/usr/share/applications/"
 cp "${REPO_DIR}/data/icons/dna.svg" "${DEB_ROOT}/usr/share/icons/hicolor/scalable/apps/"
+mkdir -p "${DEB_ROOT}/usr/share/icons/hicolor/256x256/apps"
+cp "${REPO_DIR}/data/icons/dna.png" "${DEB_ROOT}/usr/share/icons/hicolor/256x256/apps/"
+
 
 # 4. Man Page
 if [ -f "${REPO_DIR}/man/dna.1" ]; then

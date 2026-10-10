@@ -60,7 +60,7 @@ class TestDnaGui(unittest.TestCase):
     def test_header_widget(self) -> None:
         """HeaderWidget updates title, active project, and emits signals."""
         header = HeaderWidget()
-        self.assertEqual(header.title_label.text(), "DNA-Linux")
+        self.assertEqual(header.title_label.text(), "DNA-Android")
         self.assertTrue(header.back_btn.isHidden())
 
         header.set_title("Project Menu", show_back=True)
@@ -80,12 +80,37 @@ class TestDnaGui(unittest.TestCase):
 
         console.set_status("Running Task", running=True)
         self.assertFalse(console.progress_bar.isHidden())
+        self.assertTrue(console.exit_btn.isHidden())
 
         console.set_status("Success", running=False)
         self.assertTrue(console.progress_bar.isHidden())
+        self.assertFalse(console.exit_btn.isHidden())
+
+        console.copy_logs()
+        self.assertEqual(console.copy_btn.text(), "COPIED TO CLIPBOARD")
 
         console.clear_logs()
         self.assertEqual(console.text_edit.toPlainText(), "")
+        self.assertTrue(console.exit_btn.isHidden())
+
+    def test_about_dialog(self) -> None:
+        """AboutDialog initializes with version, title, and toggle switch."""
+        from dna_gui.widgets.dialogs import AboutDialog
+        about = AboutDialog()
+        self.assertIn("About DNA", about.windowTitle())
+        self.assertIsNotNone(about.toggle)
+        # Test toggle interaction
+        toggled_vals = []
+        about.transparent_toggled.connect(lambda val: toggled_vals.append(val))
+        about.toggle.click()
+        self.assertEqual(toggled_vals, [True])
+
+    def test_delete_project_dialog(self) -> None:
+        """DeleteProjectDialog lists projects in ~/DNA."""
+        from dna_gui.widgets.dialogs import DeleteProjectDialog
+        dlg = DeleteProjectDialog()
+        self.assertEqual(dlg.windowTitle(), "Delete Project")
+        self.assertIsNotNone(dlg.list_widget)
 
     def test_home_view(self) -> None:
         """HomeView creates all expected card items and navigation triggers."""
@@ -129,10 +154,15 @@ class TestDnaGui(unittest.TestCase):
         self.assertTrue(any("Adding 15 + 27" in line for line in logs))
 
     def test_main_window_navigation(self) -> None:
-        """MainWindow switches between Home, Project Menu, and Plugins views."""
+        """MainWindow switches between Home, Project Menu, and Plugins views with right-side log terminal."""
         win = MainWindow()
         self.assertEqual(win.stack.currentIndex(), 0)
-        self.assertEqual(win.header.title_label.text(), "DNA-Linux")
+        self.assertEqual(win.header.title_label.text(), "DNA-Android")
+
+        # Verify splitter and side-by-side terminal
+        self.assertIsNotNone(win.splitter)
+        self.assertEqual(win.splitter.count(), 2)
+        self.assertEqual(win.splitter.widget(1), win.console)
 
         # Navigate to Project Menu
         win.home_view.navigate_project_menu.emit()
@@ -153,10 +183,11 @@ class TestDnaGui(unittest.TestCase):
         # Back button: back to Home
         win.header.back_clicked.emit()
         self.assertEqual(win.stack.currentIndex(), 0)
-        self.assertEqual(win.header.title_label.text(), "DNA-Linux")
+        self.assertEqual(win.header.title_label.text(), "DNA-Android")
         self.assertTrue(win.header.back_btn.isHidden())
 
         win.close()
+
 
 
 if __name__ == "__main__":

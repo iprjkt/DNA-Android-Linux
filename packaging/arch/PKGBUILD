@@ -43,6 +43,7 @@ package() {
     # Desktop entry & Icon
     install -Dm644 data/dna.desktop "$pkgdir/usr/share/applications/dna.desktop"
     install -Dm644 data/icons/dna.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/dna.svg"
+    install -Dm644 data/icons/dna.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/dna.png"
 
     # Man page
     if [ -f man/dna.1 ]; then

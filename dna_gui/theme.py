@@ -31,21 +31,21 @@ QScrollArea > QWidget > QWidget {
 
 QScrollBar:vertical {
     border: none;
-    background: #111218;
-    width: 8px;
+    background: transparent;
+    width: 6px;
     margin: 0px;
-    border-radius: 4px;
 }
 
 QScrollBar::handle:vertical {
-    background: #2a2c3a;
+    background: #1e2230;
     min-height: 24px;
-    border-radius: 4px;
+    border-radius: 3px;
 }
 
 QScrollBar::handle:vertical:hover {
     background: #38bdf8;
 }
+
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
@@ -197,14 +197,91 @@ QHeaderView::section {
     font-weight: 600;
 }
 
-/* Console Output */
+/* Console Output & Log UI */
+QFrame#log_card {
+    background-color: #080a0f;
+    border: 1px solid #1a2234;
+    border-radius: 16px;
+}
+
 QPlainTextEdit#console_output {
-    background-color: #0a0b0e;
-    color: #4ade80;
+    background-color: transparent;
+    color: #cbd5e1;
     font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
     font-size: 11px;
-    border: 1px solid #1f212d;
-    border-radius: 8px;
-    padding: 8px;
+    border: none;
+    padding: 6px;
+}
+
+QPushButton#btn_copy_output {
+    background-color: #1a1e28;
+    color: #3b82f6;
+    border: 1px solid #283042;
+    border-radius: 22px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 10px 18px;
+    min-height: 42px;
+}
+
+QPushButton#btn_copy_output:hover {
+    background-color: #242938;
+    color: #60a5fa;
+    border-color: #3b82f6;
+}
+
+QPushButton#btn_copy_output:pressed {
+    background-color: #151821;
+}
+
+QPushButton#btn_exit_log {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 22px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 10px 18px;
+    min-height: 42px;
+}
+
+QPushButton#btn_exit_log:hover {
+    background-color: #1d4ed8;
+}
+
+QPushButton#btn_exit_log:pressed {
+    background-color: #1e40af;
+}
+
+QProgressBar#log_progress {
+    background-color: #11141d;
+    border: none;
+    border-radius: 1px;
+    height: 3px;
+    max-height: 3px;
+}
+
+QProgressBar#log_progress::chunk {
+    background-color: #38bdf8;
+    border-radius: 1px;
+}
+
+QSplitter {
+    background-color: transparent;
+}
+
+QSplitter::handle:horizontal {
+    background-color: #171822;
+    width: 4px;
+    margin: 8px 1px;
+    border-radius: 2px;
+}
+
+QSplitter::handle:horizontal:hover {
+    background-color: #38bdf8;
 }
 """
+
+
