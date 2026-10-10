@@ -14,9 +14,9 @@ Tracking progress across phases as defined in `README.md`.
 | **Phase 3 — ROM Menu** | Debloat, remove oat, make ROM-RW, ROM decrypt | **Completed** | Data-driven debloat presets (global/china), oat directory cleanup, make-rw (fstab overlay and init cleanup), decrypt (force-encrypt removal), and 36/36 tests passing. |
 | **Phase 4 — Patch Menu** | vbmeta, integrity fix, SafetyCore, priv-app permissions, disable OTA, Xiaomi services | **Completed** | Lossless `build.prop` editor (`PropFile`), AVB `vbmeta.img` flag patcher, Play Integrity spoofing, SafetyCore placeholder injector, Priv-App permissions removal, Xiaomi OTA disable, and Xiaomi telemetry/services cleanup. 59/59 unit tests passing. |
 | **Phase 5 — Jar Menu** | Core patch DSV, remove APK protection, disable secure screenshot | **Completed** | Descriptor-based smali bytecode patcher via `apktool` for `services.jar`. Core Patch DSV (signature verification bypass), Remove APK Protection (installer/downgrade bypass), and Disable Secure Screenshot with Android 17 `CompletableFuture` crash fix. 65/65 unit tests passing. |
-| **Phase 6 — Plugins** | Plugin spec, importer, sandboxed execution, example plugin | **Completed** | TOML-based plugin format (`plugin.toml`), safe Zip-Slip-resistant importer, sandboxed workspace execution with environment injection (`DNA_*`), bundled reference plugin (`plugins/example_tweak`), and 72/72 tests passing. |
 | **Phase 7 — TUI** | Terminal UI mirroring Home -> Project Menu | **Completed** | Full-screen interactive Terminal User Interface (`dna_tui/`) with dark theme, keyboard navigation, breadcrumb header, workspace switching, Home Menu, Project Menu, submenus, action execution screens, non-TTY fallback, and 78/78 tests passing. |
-| **Phase 8 — Docs & Release** | Packaging, man page, shell completions, PKGBUILD, .deb script | Pending | Distribution packages for Arch Linux and Debian/Ubuntu. |
+| **Phase 8 — GUI** | Desktop Graphical UI mirroring DNA-Android | **Completed** | Native PyQt6 desktop GUI (`dna_gui/`) with authentic dark AMOLED styling, tactile card buttons, stacked screen transitions (Home -> Project Menu -> Plugins), non-blocking background workers, live log console drawer, Tool Doctor dialog, desktop launcher entry, and 87/87 tests passing. |
+| **Phase 9 — Docs & Release** | Packaging, man page, shell completions, PKGBUILD, .deb script, CI | **Completed** | Arch Linux PKGBUILD, Debian/Ubuntu build_deb.sh, roff man page (dna.1), completions (Bash, Zsh, Fish), GitHub Actions CI, and comprehensive install guide. |
 
 ---
 
@@ -72,3 +72,19 @@ Tracking progress across phases as defined in `README.md`.
   - UX & Navigation: Dark-themed styling, dynamic active project display, breadcrumb navigation, interactive prompts, and scrollable output view.
   - Launchers: Launchable via `dna tui` or direct `dna` invocation on interactive TTYs, with automatic non-interactive fallback.
   - Automated tests: 78/78 tests passing via `python3 -m unittest discover tests`.
+- **Phase 8 Verification**:
+  - `dna_gui/`: Full native desktop Graphical User Interface using PyQt6.
+  - Visuals: Clean AMOLED dark styling (`#0f1015`), rounded card containers, tactile hover feedback, blue trailing icons (`☰` and `›`), and responsive layout.
+  - Navigation: Fluid stack transitions matching DNA-Android: Home View -> Project Menu View -> Plugin Functions View with top back button.
+  - Operations: Integrated Unpack, Repack, Convert, Jar (with Android 17 crash fix), Patch, ROM Debloat/RW, and Plugin execution.
+  - Asynchronous Execution: Background `WorkerThread` prevents UI freezing during heavy filesystem/tool operations; streams stdout/stderr logs into collapsible console drawer in real time.
+  - Automated tests: 87/87 tests passing via `python3 -m unittest discover tests`.
+- **Phase 9 Verification**:
+  - Arch Linux: `packaging/arch/PKGBUILD` for makepkg and AUR packaging.
+  - Debian/Ubuntu: `packaging/debian/build_deb.sh` producing compliant `.deb` package.
+  - Manual page: `man/dna.1` installed to `/usr/share/man/man1/`.
+  - Shell completions: Bash (`completions/dna.bash`), Zsh (`completions/_dna`), Fish (`completions/dna.fish`).
+  - Desktop integration: `data/dna.desktop` and vector icon `data/icons/dna.svg`.
+  - CI: `.github/workflows/ci.yml` running unit tests and linters in headless matrix.
+  - Documentation: Comprehensive setup and installation guide in `docs/INSTALL.md`.
+
