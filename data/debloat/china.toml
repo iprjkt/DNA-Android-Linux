@@ -1,0 +1,117 @@
+# DNA-Linux Debloat Preset: MIUI / HyperOS China
+# Compatible with MIUI 13/14 and HyperOS 1.0 / 2.0 / 2.0.2 China Builds
+
+[metadata]
+name = "china"
+title = "MIUI / HyperOS China Debloat"
+description = "Removes China-specific services, third-party bloat, analytics, and telemetry."
+
+[[packages]]
+name = "Analytics"
+description = "MIUI Analytics telemetry service"
+patterns = [
+    "*/app/Analytics",
+    "*/priv-app/Analytics",
+    "*/app/MIUIAnalytics",
+    "*/priv-app/MIUIAnalytics"
+]
+
+[[packages]]
+name = "MSA (MIUI System Ads)"
+description = "MIUI System Ads daemon"
+patterns = [
+    "*/app/MSA",
+    "*/priv-app/MSA"
+]
+
+[[packages]]
+name = "YellowPage"
+description = "MIUI YellowPages directory service"
+patterns = [
+    "*/app/YellowPage",
+    "*/priv-app/YellowPage"
+]
+
+[[packages]]
+name = "BugReport"
+description = "OEM crash and bug uploader"
+patterns = [
+    "*/app/BugReport",
+    "*/priv-app/BugReport",
+    "*/app/MiuiBugReport"
+]
+
+[[packages]]
+name = "MiService / Feedback"
+description = "Xiaomi user feedback service"
+patterns = [
+    "*/app/MiService",
+    "*/priv-app/MiService"
+]
+
+[[packages]]
+name = "Joyose"
+description = "Xiaomi background telemetry scheduler"
+patterns = [
+    "*/app/Joyose",
+    "*/priv-app/Joyose"
+]
+
+[[packages]]
+name = "Hybrid Platform"
+description = "Quick Apps telemetry platform"
+patterns = [
+    "*/app/HybridPlatform",
+    "*/priv-app/HybridPlatform",
+    "*/app/HybridAccessory"
+]
+
+[[packages]]
+name = "Baidu / Sogou Input"
+description = "Third-party bundled Chinese keyboard engines"
+patterns = [
+    "*/app/BaiduIME",
+    "*/app/SogouInput",
+    "*/priv-app/BaiduIME"
+]
+
+[[packages]]
+name = "MiShop"
+description = "Xiaomi shopping and mall app"
+patterns = [
+    "*/app/MiShop",
+    "*/priv-app/MiShop"
+]
+
+[[packages]]
+name = "MiVIP"
+description = "Xiaomi VIP rewards and telemetry"
+patterns = [
+    "*/app/VIPAccount",
+    "*/priv-app/VIPAccount"
+]
+
+[[packages]]
+name = "MiLiveAssistant"
+description = "Live streaming assistant"
+patterns = [
+    "*/app/LiveAssistant",
+    "*/priv-app/LiveAssistant"
+]
+
+[[packages]]
+name = "ContentCatcher"
+description = "Content catcher daemon"
+patterns = [
+    "*/app/ContentCatcher",
+    "*/priv-app/ContentCatcher"
+]
+
+[[packages]]
+name = "Payment Services"
+description = "Xiaomi payment services"
+patterns = [
+    "*/app/PaymentService",
+    "*/priv-app/PaymentService",
+    "*/app/Micoin"
+]
