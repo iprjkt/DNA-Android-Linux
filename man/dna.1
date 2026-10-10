@@ -1,0 +1,116 @@
+.TH DNA 1 "October 2026" "DNA-Linux 0.1.0" "User Commands"
+.SH NAME
+dna \- Native Linux (x86_64) Android ROM unpack, repack, and patch toolkit
+.SH SYNOPSIS
+.B dna
+[\fIOPTIONS\fR] \fICOMMAND\fR [\fIARGS\fR]...
+.br
+.B dna-gui
+.SH DESCRIPTION
+\fBDNA-Linux\fR is a native Linux port of the Android ROM toolkit DNA-Android.
+It provides zero-compromise x86_64 native tools for manipulating Android filesystem
+images (ext4, erofs, f2fs), dynamic super.img partitions, OTA archives,
+framework services.jar smali patching, debloating, and verified boot (AVB) configuration.
+
+It can be operated via the command line (\fBdna\fR), an interactive full-screen
+terminal interface (\fBdna tui\fR), or a modern Qt desktop graphical interface (\fBdna gui\fR).
+.SH OPTIONS
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Show the program version and exit.
+.TP
+\fB\-p\fR, \fB\-\-project\fR \fIPROJECT\fR
+Specify target project name or explicit workspace directory.
+.TP
+\fB\-n\fR, \fB\-\-dry\-run\fR
+Simulate execution without modifying the filesystem.
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Enable verbose debug logging.
+.TP
+\fB\-y\fR, \fB\-\-yes\fR
+Automatically confirm destructive prompts.
+.TP
+\fB\-\-log\-file\fR \fIFILE\fR
+Write execution logs to the specified file.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show help message and exit.
+.SH COMMANDS
+.TP
+\fBdoctor\fR
+Check native tool dependencies and environment health.
+.TP
+\fBgui\fR
+Launch interactive Desktop Graphical User Interface (PyQt6).
+.TP
+\fBtui\fR
+Launch interactive Terminal User Interface (curses).
+.TP
+\fBproject\fR \fIcreate|select|delete|list\fR
+Manage DNA project workspaces under \fI~/DNA/\fR.
+.TP
+\fBrom\fR \fIunzip|debloat|remove-oat|make-rw|decrypt\fR
+ROM archive extraction and filesystem tweak operations.
+.TP
+\fBunpack\fR \fIbin|br|dat|img|zstd|super\fR
+Unpack payload.bin, Brotli archives, transfer lists, filesystem images, and super.img.
+.TP
+\fBrepack\fR \fIimg|zstd|super\fR
+Repack directories into ext4/erofs, compress with zstd, or build dynamic super.img via lpmake.
+.TP
+\fBresize\fR \fIIMAGE\fR [\fI--size MB\fR]
+Resize ext4 partition images safely using resize2fs.
+.TP
+\fBconvert\fR \fIimg-simg|img-dat-br\fR
+Convert between sparse/raw images or create transfer lists and Brotli archives.
+.TP
+\fBsuper\fR \fIsplit|merge\fR
+Split super.img into chunk parts or merge chunk parts back into raw super.img.
+.TP
+\fBjar\fR \fIcore-patch-dsv|remove-apk-protection|disable-secure-screenshot|patch-all\fR
+Smali bytecode modifications for framework services.jar. Includes Android 17 CompletableFuture crash protection.
+.TP
+\fBpatch\fR \fIvbmeta|integrity-fix|safetycore|privapp-permissions|disable-ota|disable-xiaomi-services\fR
+Apply system property and AVB image modifications.
+.TP
+\fBplugin\fR \fIlist|info|import|run|delete\fR
+Manage and execute sandboxed workspace plugins.
+.SH WORKSPACE LAYOUT
+Workspaces reside in \fI~/DNA/DNA_<project>/\fR:
+.TP
+\fBrom/\fR
+Extracted contents of official ROM zip archives.
+.TP
+\fBimages/\fR
+Partition images (system.img, vendor.img, super.img, vbmeta.img).
+.TP
+\fBunpacked/\fR
+Extracted partition filesystem trees (system/, vendor/, product/).
+.TP
+\fBout/\fR
+Repacked images and flashable outputs.
+.TP
+\fBlog/\fR
+Per-operation logs and history.
+.SH EXAMPLES
+.B dna doctor
+.br
+.B dna project create myrom
+.br
+.B dna rom unzip miui_rom.zip
+.br
+.B dna unpack super images/super.img
+.br
+.B dna unpack img images/system.img
+.br
+.B dna jar disable-secure-screenshot
+.br
+.B dna repack img unpacked/system images/system.img
+.br
+.B dna gui
+.SH AUTHORS
+DNA-Linux is developed by iprjkt.
+Based on DNA-Android v9.0.0 modded by @SoutaEver.
+.SH LICENSE
+GNU General Public License v3.0 or later.

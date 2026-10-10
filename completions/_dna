@@ -1,0 +1,77 @@
+#compdef dna
+
+# Zsh completion for DNA-Linux (dna)
+_dna() {
+    local line state
+
+    _arguments -C \
+        "(-V --version)"{-V,--version}"[Show version and exit]" \
+        "(-p --project)"{-p,--project}"[Target project name or directory]:project:_dna_projects" \
+        "(-n --dry-run)"{-n,--dry-run}"[Simulate execution without writing to disk]" \
+        "(-v --verbose)"{-v,--verbose}"[Enable debug logging]" \
+        "(-y --yes)"{-y,--yes}"[Confirm prompts automatically]" \
+        "(--log-file)"--log-file"[Write logs to file]:log file:_files" \
+        "(-h --help)"{-h,--help}"[Show help message]" \
+        "1: :->command" \
+        "*::arg:->args"
+
+    case $state in
+        command)
+            local -a commands
+            commands=(
+                'doctor:Check native tools and system health'
+                'gui:Launch Desktop Graphical User Interface'
+                'tui:Launch Terminal User Interface'
+                'project:Manage DNA project workspaces'
+                'rom:ROM archive and filesystem operations'
+                'unpack:Unpack partition images and archives'
+                'repack:Repack filesystem partitions and super.img'
+                'resize:Resize ext4 partition images'
+                'convert:Format conversions (sparse/raw/dat/br)'
+                'super:Split and merge dynamic super.img'
+                'jar:Smali bytecode patching for services.jar'
+                'patch:ROM and AVB image patches'
+                'plugin:Plugin management and execution'
+                'unzip-rom:Extract a ROM ZIP archive'
+            )
+            _describe -t commands 'dna command' commands
+            ;;
+        args)
+            case $line[1] in
+                project)
+                    local -a subcmds
+                    subcmds=('create:Create a new project workspace' 'select:Switch active project' 'delete:Remove a project workspace' 'list:List existing workspaces')
+                    _describe -t subcmds 'project action' subcmds
+                    ;;
+                rom)
+                    local -a subcmds
+                    subcmds=('unzip:Extract ROM zip' 'debloat:Remove bloatware apps' 'remove-oat:Delete oat directories' 'make-rw:Enable read-write ROM' 'decrypt:Disable encryption in fstab')
+                    _describe -t subcmds 'rom action' subcmds
+                    ;;
+                unpack)
+                    local -a subcmds
+                    subcmds=('bin:Unpack payload.bin' 'br:Decompress brotli' 'dat:Convert dat to img' 'img:Extract partition image' 'zstd:Decompress zstd' 'super:Unpack super.img')
+                    _describe -t subcmds 'unpack format' subcmds
+                    ;;
+                repack)
+                    local -a subcmds
+                    subcmds=('img:Repack partition into ext4/erofs' 'zstd:Compress image with zstd' 'super:Assemble super.img with lpmake')
+                    _describe -t subcmds 'repack target' subcmds
+                    ;;
+                *)
+                    _files
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_dna_projects() {
+    local -a projs
+    if [ -d "$HOME/DNA" ]; then
+        projs=($HOME/DNA/DNA_*(/:t))
+        _describe -t projects 'project' projs
+    fi
+}
+
+_dna "$@"

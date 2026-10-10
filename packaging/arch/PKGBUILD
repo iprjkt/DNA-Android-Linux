@@ -1,0 +1,66 @@
+# Maintainer: iprjkt <iprjkt@users.noreply.github.com>
+pkgname=dna-linux
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Native Linux (x86_64) Android ROM unpack, repack, format conversion, and patch toolkit"
+arch=('x86_64')
+url="https://github.com/iprjkt/DNA-Linux"
+license=('GPL-3.0-or-later')
+depends=(
+    'python>=3.11'
+    'python-click>=8.0'
+    'python-rich>=12.0'
+    'android-tools'
+    'e2fsprogs'
+    'erofs-utils'
+    'brotli'
+    'zstd'
+)
+optdepends=(
+    'python-pyqt6: Desktop graphical user interface (GUI)'
+    'apktool: Framework services.jar smali decompile & recompile'
+    'avbtool: Verified Boot 2.0 image inspection'
+    'f2fs-tools: Flash-Friendly File System inspection'
+)
+makedepends=(
+    'python-build'
+    'python-installer'
+    'python-hatchling'
+    'python-wheel'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver" 2>/dev/null || cd "$srcdir/DNA-Android-Linux" 2>/dev/null || cd "$startdir"
+    python -m build --wheel --no-isolation
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver" 2>/dev/null || cd "$srcdir/DNA-Android-Linux" 2>/dev/null || cd "$startdir"
+    python -m installer --destdir="$pkgdir" dist/*.whl
+
+    # Desktop entry & Icon
+    install -Dm644 data/dna.desktop "$pkgdir/usr/share/applications/dna.desktop"
+    install -Dm644 data/icons/dna.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/dna.svg"
+
+    # Man page
+    if [ -f man/dna.1 ]; then
+        install -Dm644 man/dna.1 "$pkgdir/usr/share/man/man1/dna.1"
+    fi
+
+    # Shell completions
+    if [ -f completions/dna.bash ]; then
+        install -Dm644 completions/dna.bash "$pkgdir/usr/share/bash-completion/completions/dna"
+    fi
+    if [ -f completions/_dna ]; then
+        install -Dm644 completions/_dna "$pkgdir/usr/share/zsh/site-functions/_dna"
+    fi
+    if [ -f completions/dna.fish ]; then
+        install -Dm644 completions/dna.fish "$pkgdir/usr/share/fish/vendor_completions.d/dna.fish"
+    fi
+
+    # Bundled data assets
+    install -d "$pkgdir/usr/share/dna-linux"
+    cp -r data/* "$pkgdir/usr/share/dna-linux/"
+}
