@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 import click
 from rich.console import Console
@@ -17,11 +18,12 @@ from dna_cli.commands.repack import repack_group
 from dna_cli.commands.resize import resize_cmd
 from dna_cli.commands.rom import rom_group, unzip_cmd
 from dna_cli.commands.super import super_group
+from dna_cli.commands.tui import tui_cmd
 from dna_cli.commands.unpack import unpack_group
 from dna_core.logger import setup_logger
 
 
-@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, "-V", "--version", prog_name="dna")
 @click.option(
     "--project",
@@ -80,8 +82,16 @@ def cli(
         "log_file": log_file,
     }
 
+    if ctx.invoked_subcommand is None:
+        if sys.stdin.isatty():
+            from dna_tui.app import start_tui
+            start_tui()
+        else:
+            click.echo(ctx.get_help())
+
 
 # Register command groups and commands
+cli.add_command(tui_cmd)
 cli.add_command(doctor_cmd)
 cli.add_command(project_group)
 cli.add_command(rom_group)

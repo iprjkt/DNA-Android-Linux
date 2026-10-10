@@ -15,7 +15,7 @@ Tracking progress across phases as defined in `README.md`.
 | **Phase 4 — Patch Menu** | vbmeta, integrity fix, SafetyCore, priv-app permissions, disable OTA, Xiaomi services | **Completed** | Lossless `build.prop` editor (`PropFile`), AVB `vbmeta.img` flag patcher, Play Integrity spoofing, SafetyCore placeholder injector, Priv-App permissions removal, Xiaomi OTA disable, and Xiaomi telemetry/services cleanup. 59/59 unit tests passing. |
 | **Phase 5 — Jar Menu** | Core patch DSV, remove APK protection, disable secure screenshot | **Completed** | Descriptor-based smali bytecode patcher via `apktool` for `services.jar`. Core Patch DSV (signature verification bypass), Remove APK Protection (installer/downgrade bypass), and Disable Secure Screenshot with Android 17 `CompletableFuture` crash fix. 65/65 unit tests passing. |
 | **Phase 6 — Plugins** | Plugin spec, importer, sandboxed execution, example plugin | **Completed** | TOML-based plugin format (`plugin.toml`), safe Zip-Slip-resistant importer, sandboxed workspace execution with environment injection (`DNA_*`), bundled reference plugin (`plugins/example_tweak`), and 72/72 tests passing. |
-| **Phase 7 — TUI** | Terminal UI mirroring Home -> Project Menu | Pending | Dark-themed Textual or curses interface. |
+| **Phase 7 — TUI** | Terminal UI mirroring Home -> Project Menu | **Completed** | Full-screen interactive Terminal User Interface (`dna_tui/`) with dark theme, keyboard navigation, breadcrumb header, workspace switching, Home Menu, Project Menu, submenus, action execution screens, non-TTY fallback, and 78/78 tests passing. |
 | **Phase 8 — Docs & Release** | Packaging, man page, shell completions, PKGBUILD, .deb script | Pending | Distribution packages for Arch Linux and Debian/Ubuntu. |
 
 ---
@@ -67,3 +67,8 @@ Tracking progress across phases as defined in `README.md`.
   - Bundled Reference Plugin: Created [`plugins/example_tweak`](file:///mnt/detalmick/DNA-Android-Linux/plugins/example_tweak) demonstrating metadata declaration and sandboxed execution.
   - CLI: `dna plugin list`, `dna plugin info`, `dna plugin import`, `dna plugin run`, and `dna plugin delete` all verified end-to-end.
   - Automated tests: 72/72 tests passing via `python3 -m unittest discover tests`.
+- **Phase 7 Verification**:
+  - `dna_tui/app.py`: Interactive curses Terminal User Interface providing Home Menu, Project Workspace Menu, Unpack, Repack, Conversion, ROM Menu, Patch Menu, Jar Menu, and Plugins Menu.
+  - UX & Navigation: Dark-themed styling, dynamic active project display, breadcrumb navigation, interactive prompts, and scrollable output view.
+  - Launchers: Launchable via `dna tui` or direct `dna` invocation on interactive TTYs, with automatic non-interactive fallback.
+  - Automated tests: 78/78 tests passing via `python3 -m unittest discover tests`.
