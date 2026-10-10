@@ -219,6 +219,31 @@ class TestDnaGui(unittest.TestCase):
 
         win.close()
 
+    def test_main_window_action_repack_img_dialog(self) -> None:
+        """Verify _action_repack_img executes without NameError on QDialog."""
+        from unittest.mock import patch
+        from dna_core.paths import ProjectPaths
+        from dna_gui.widgets.dialogs import RepackSingleImgDialog
+        from PyQt6.QtWidgets import QDialog
+
+        win = MainWindow()
+        with TemporaryDirectory() as tmpdir:
+            proj_dir = Path(tmpdir)
+            p = ProjectPaths(project_dir=proj_dir)
+            p.images.mkdir(parents=True, exist_ok=True)
+            p.unpacked.mkdir(parents=True, exist_ok=True)
+            (p.unpacked / "system").mkdir()
+
+            with patch.object(win, "_require_project", return_value=p):
+                with patch.object(RepackSingleImgDialog, "exec", return_value=QDialog.DialogCode.Rejected):
+                    win._action_repack_img()
+
+                with patch.object(RepackSingleImgDialog, "exec", return_value=QDialog.DialogCode.Accepted):
+                    with patch.object(win, "run_async_task") as mock_task:
+                        win._action_repack_img()
+                        mock_task.assert_called_once()
+        win.close()
+
     def test_file_select_and_stepper_widgets(self) -> None:
         """FileSelectField, NumberStepper, and CheckboxCard function correctly."""
         from dna_gui.widgets.dialogs import CheckboxCard, FileSelectField, NumberStepper
