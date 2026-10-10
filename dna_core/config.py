@@ -18,6 +18,7 @@ class GlobalConfig:
     active_project: str | None = None
     auto_confirm: bool = False
     verbose: bool = False
+    background_image: str | None = None
     tool_overrides: dict[str, str] = field(default_factory=dict)
 
     @classmethod
@@ -35,6 +36,7 @@ class GlobalConfig:
                 active_project=data.get("active_project"),
                 auto_confirm=data.get("auto_confirm", False),
                 verbose=data.get("verbose", False),
+                background_image=data.get("background_image"),
                 tool_overrides=data.get("tool_overrides", {}),
             )
         except Exception:
@@ -56,6 +58,10 @@ class GlobalConfig:
 
         lines.append(f"auto_confirm = {str(self.auto_confirm).lower()}")
         lines.append(f"verbose = {str(self.verbose).lower()}")
+        if self.background_image:
+            lines.append(f'background_image = "{self.background_image}"')
+        else:
+            lines.append('# background_image = ""')
 
         lines.append("\n[tool_overrides]")
         for tool_name, tool_path in self.tool_overrides.items():
@@ -65,6 +71,19 @@ class GlobalConfig:
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
         return path
+
+
+def get_background_image(config: GlobalConfig | None = None) -> str | None:
+    """Return the currently configured custom background image path, or None."""
+    cfg = config or GlobalConfig.load()
+    return cfg.background_image
+
+
+def set_background_image(path: str | None, config_path: Path | None = None) -> None:
+    """Update and persist the custom background image path."""
+    cfg = GlobalConfig.load(config_path)
+    cfg.background_image = path
+    cfg.save(config_path)
 
 
 def get_active_project_path(config: GlobalConfig | None = None) -> Path | None:
