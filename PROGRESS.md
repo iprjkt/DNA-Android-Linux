@@ -14,7 +14,7 @@ Tracking progress across phases as defined in `README.md`.
 | **Phase 3 — ROM Menu** | Debloat, remove oat, make ROM-RW, ROM decrypt | **Completed** | Data-driven debloat presets (global/china), oat directory cleanup, make-rw (fstab overlay and init cleanup), decrypt (force-encrypt removal), and 36/36 tests passing. |
 | **Phase 4 — Patch Menu** | vbmeta, integrity fix, SafetyCore, priv-app permissions, disable OTA, Xiaomi services | **Completed** | Lossless `build.prop` editor (`PropFile`), AVB `vbmeta.img` flag patcher, Play Integrity spoofing, SafetyCore placeholder injector, Priv-App permissions removal, Xiaomi OTA disable, and Xiaomi telemetry/services cleanup. 59/59 unit tests passing. |
 | **Phase 5 — Jar Menu** | Core patch DSV, remove APK protection, disable secure screenshot | **Completed** | Descriptor-based smali bytecode patcher via `apktool` for `services.jar`. Core Patch DSV (signature verification bypass), Remove APK Protection (installer/downgrade bypass), and Disable Secure Screenshot with Android 17 `CompletableFuture` crash fix. 65/65 unit tests passing. |
-| **Phase 6 — Plugins** | Plugin spec, importer, sandboxed execution, example plugin | Pending | TOML-based plugin format with sandboxed workspace execution. |
+| **Phase 6 — Plugins** | Plugin spec, importer, sandboxed execution, example plugin | **Completed** | TOML-based plugin format (`plugin.toml`), safe Zip-Slip-resistant importer, sandboxed workspace execution with environment injection (`DNA_*`), bundled reference plugin (`plugins/example_tweak`), and 72/72 tests passing. |
 | **Phase 7 — TUI** | Terminal UI mirroring Home -> Project Menu | Pending | Dark-themed Textual or curses interface. |
 | **Phase 8 — Docs & Release** | Packaging, man page, shell completions, PKGBUILD, .deb script | Pending | Distribution packages for Arch Linux and Debian/Ubuntu. |
 
@@ -62,3 +62,8 @@ Tracking progress across phases as defined in `README.md`.
   - Disable Secure Screenshot (DSS) + Android 17 Fix: Patches `WindowState.isSecureLocked()Z` to return `false` (0); inspects `PolicyEnforcerCallbacks.setScreenCaptureDisabled` return descriptor to inject `AndroidFuture.completedFuture(Boolean.TRUE)` rather than `return-void`, preventing the fatal `java.lang.VerifyError: [0x0] return-void not expected` bootloop crash analyzed in `/run/media/fxxyz73/sigeonpex/Project/logcat/reboot_crash.txt`.
   - CLI: `dna jar core-patch-dsv`, `dna jar remove-apk-protection`, `dna jar disable-secure-screenshot`, and `dna jar patch-all` verified with `--dry-run` on real 32MB `services.jar` from testbed.
   - Automated tests: 65/65 tests passing via `python3 -m unittest discover tests`.
+- **Phase 6 Verification**:
+  - `dna_core/plugin.py`: Manifest parser (`plugin.toml`), Zip-Slip-resistant zip/directory extractor, project and global plugin discovery, and sandboxed runner injecting workspace environment variables (`DNA_PROJECT`, `DNA_UNPACKED`, `DNA_OUT`, `DNA_IMAGES`, etc.).
+  - Bundled Reference Plugin: Created [`plugins/example_tweak`](file:///mnt/detalmick/DNA-Android-Linux/plugins/example_tweak) demonstrating metadata declaration and sandboxed execution.
+  - CLI: `dna plugin list`, `dna plugin info`, `dna plugin import`, `dna plugin run`, and `dna plugin delete` all verified end-to-end.
+  - Automated tests: 72/72 tests passing via `python3 -m unittest discover tests`.

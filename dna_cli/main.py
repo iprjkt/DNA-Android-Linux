@@ -11,6 +11,7 @@ from dna_cli.commands.convert import convert_group
 from dna_cli.commands.doctor import doctor_cmd
 from dna_cli.commands.jar import jar_group
 from dna_cli.commands.patch import patch_group
+from dna_cli.commands.plugin import plugin_group
 from dna_cli.commands.project import project_group
 from dna_cli.commands.repack import repack_group
 from dna_cli.commands.resize import resize_cmd
@@ -86,6 +87,7 @@ cli.add_command(project_group)
 cli.add_command(rom_group)
 cli.add_command(patch_group)
 cli.add_command(jar_group)
+cli.add_command(plugin_group)
 cli.add_command(unpack_group)
 cli.add_command(repack_group)
 cli.add_command(resize_cmd)
