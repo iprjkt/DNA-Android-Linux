@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractButton,
     QCheckBox,
@@ -712,62 +712,114 @@ def get_repack_partition_candidates(proj: ProjectPaths | None, mode: str = "all"
 
 
 class StyledComboBox(QComboBox):
-    """QComboBox styled with a dark theme and translucent popup background to prevent white frames on Hyprland/Wayland."""
+    """QComboBox styled with a dark theme, custom chevron arrow, and translucent popup background to prevent white frames on Hyprland/Wayland."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, borderless: bool = False) -> None:
         super().__init__(parent)
+        self.borderless = borderless
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setStyleSheet(
-            "QComboBox {"
-            "   background-color: #1c1d24;"
-            "   border: 1px solid #282a35;"
-            "   border-radius: 10px;"
-            "   padding: 8px 12px;"
-            "   color: #ffffff;"
-            "   font-size: 13px;"
-            "}"
-            "QComboBox:hover { border-color: #3b82f6; }"
-            "QComboBox::drop-down { border: none; width: 22px; }"
-        )
+        if borderless:
+            self.setStyleSheet(
+                "QComboBox {"
+                "   combobox-popup: 0;"
+                "   background-color: transparent;"
+                "   border: none;"
+                "   color: #ffffff;"
+                "   font-size: 13px;"
+                "   padding: 4px 28px 4px 6px;"
+                "}"
+                "QComboBox:hover { color: #38bdf8; }"
+                "QComboBox::drop-down { border: none; width: 0px; }"
+            )
+        else:
+            self.setStyleSheet(
+                "QComboBox {"
+                "   combobox-popup: 0;"
+                "   background-color: #1a1b20;"
+                "   border: 1px solid #282a32;"
+                "   border-radius: 10px;"
+                "   color: #ffffff;"
+                "   font-size: 13px;"
+                "   padding: 8px 30px 8px 14px;"
+                "}"
+                "QComboBox:hover { border-color: #3b82f6; }"
+                "QComboBox::drop-down { border: none; width: 0px; }"
+            )
+
         v = self.view()
         v.setStyleSheet(
             "QAbstractItemView {"
-            "   background-color: #181920;"
+            "   background-color: #2b2d32;"
             "   color: #ffffff;"
-            "   border: 1px solid #282a35;"
-            "   border-radius: 8px;"
+            "   border: none;"
             "   padding: 4px;"
             "   outline: none;"
-            "   selection-background-color: #2563eb;"
-            "   selection-color: #ffffff;"
             "}"
             "QAbstractItemView::item {"
-            "   min-height: 28px;"
-            "   padding: 4px 8px;"
-            "   border-radius: 4px;"
-            "   color: #cbd5e1;"
+            "   min-height: 32px;"
+            "   padding: 6px 12px;"
+            "   border-radius: 6px;"
+            "   color: #e2e8f0;"
             "}"
             "QAbstractItemView::item:hover {"
-            "   background-color: #222533;"
+            "   background-color: #383b42;"
             "   color: #ffffff;"
             "}"
             "QAbstractItemView::item:selected {"
-            "   background-color: #2563eb;"
+            "   background-color: #383b42;"
             "   color: #ffffff;"
             "}"
         )
+        container = v.parentWidget()
+        if container:
+            container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            container.setWindowFlags(
+                Qt.WindowType.Popup
+                | Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.NoDropShadowWindowHint
+            )
+            container.setStyleSheet(
+                "background-color: #2b2d32; border: 1px solid #3c3f46; border-radius: 10px; padding: 4px;"
+            )
+
+    def paintEvent(self, event: Any) -> None:
+        super().paintEvent(event)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(
+            QPen(
+                QColor("#94a3b8"),
+                2,
+                Qt.PenStyle.SolidLine,
+                Qt.PenCapStyle.RoundCap,
+                Qt.PenJoinStyle.RoundJoin,
+            )
+        )
+        r = self.rect()
+        cx = r.right() - 14
+        cy = r.center().y()
+        p.drawLine(cx - 4, cy - 2, cx, cy + 2)
+        p.drawLine(cx, cy + 2, cx + 4, cy - 2)
 
     def showPopup(self) -> None:
-        popup = self.view().window()
-        if popup:
-            popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-            popup.setStyleSheet("background-color: transparent; border: none;")
+        container = self.view().parentWidget()
+        if container:
+            container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            container.setStyleSheet(
+                "background-color: #2b2d32; border: 1px solid #3c3f46; border-radius: 10px; padding: 4px;"
+            )
         super().showPopup()
+        container = self.view().parentWidget()
+        if container:
+            container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            container.setStyleSheet(
+                "background-color: #2b2d32; border: 1px solid #3c3f46; border-radius: 10px; padding: 4px;"
+            )
 
 
-class OptionRowCard(QFrame):
+class OptionRowCard(QWidget):
     """Horizontal card with label on left, control on right, and optional subtitle note below.
-    Matches the card design in DNA-Android (Screenshot_2026-10-11-01-29-46-660).
+    Matches the card design in DNA-Android (Screenshot_2026-10-11-01-29-56-211).
     """
 
     def __init__(
@@ -778,37 +830,56 @@ class OptionRowCard(QFrame):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setObjectName("option_row_card")
-        self.setStyleSheet(
-            "#option_row_card {"
-            "   background-color: #1c1d24;"
-            "   border: 1px solid #282a35;"
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(4)
+        self.card_layout = main_layout
+
+        self.pill = QFrame(self)
+        self.pill.setObjectName("option_pill")
+        self.pill.setStyleSheet(
+            "#option_pill {"
+            "   background-color: #1a1b20;"
+            "   border: 1px solid #282a32;"
             "   border-radius: 12px;"
+            "   min-height: 48px;"
             "}"
-            "QLabel { border: none; background: transparent; }"
+            "#option_pill:hover {"
+            "   border-color: #3b82f6;"
+            "}"
         )
-        self.card_layout = QVBoxLayout(self)
-        self.card_layout.setContentsMargins(14, 10, 14, 10)
-        self.card_layout.setSpacing(6)
+        pill_layout = QHBoxLayout(self.pill)
+        pill_layout.setContentsMargins(14, 4, 14, 4)
+        pill_layout.setSpacing(10)
 
-        top_row = QHBoxLayout()
-        top_row.setSpacing(12)
+        self.label = QLabel(label_text, self.pill)
+        self.label.setStyleSheet(
+            "color: #ffffff; font-size: 13px; font-weight: 500; background: transparent; border: none;"
+        )
+        self.label.setWordWrap(True)
+        self.label.setFixedWidth(105)
+        pill_layout.addWidget(self.label)
 
-        self.label = QLabel(label_text)
-        self.label.setStyleSheet("color: #ffffff; font-size: 13px; font-weight: 500;")
-        top_row.addWidget(self.label)
-        top_row.addStretch(1)
+        divider = QFrame(self.pill)
+        divider.setFrameShape(QFrame.Shape.VLine)
+        divider.setFrameShadow(QFrame.Shadow.Plain)
+        divider.setStyleSheet(
+            "background-color: #2f323c; border: none; min-width: 1px; max-width: 1px; min-height: 22px; max-height: 22px;"
+        )
+        pill_layout.addWidget(divider)
 
         self.widget = widget
-        top_row.addWidget(self.widget)
-        self.card_layout.addLayout(top_row)
+        pill_layout.addWidget(self.widget, 1)
+        main_layout.addWidget(self.pill)
 
         self.sub_lbl: QLabel | None = None
         if subtitle:
-            self.sub_lbl = QLabel(subtitle)
+            self.sub_lbl = QLabel(subtitle, self)
             self.sub_lbl.setWordWrap(True)
-            self.sub_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
-            self.card_layout.addWidget(self.sub_lbl)
+            self.sub_lbl.setStyleSheet(
+                "color: #71767c; font-size: 11px; padding-left: 6px; background: transparent;"
+            )
+            main_layout.addWidget(self.sub_lbl)
 
 
 class FileListSelectDialog(QDialog):
@@ -1522,14 +1593,14 @@ class RepackSingleImgDialog(BaseOperationDialog):
         self.form_layout.addWidget(self.file_picker)
 
         # 2. Packing Method (ext4 / erofs / f2fs)
-        self.combo_method = StyledComboBox()
+        self.combo_method = StyledComboBox(borderless=True)
         self.combo_method.addItems(["ext4", "erofs", "f2fs"])
         self.combo_method.setMinimumWidth(120)
         self.card_method = OptionRowCard("Packing Method", self.combo_method)
         self.form_layout.addWidget(self.card_method)
 
         # 3. Partition Access (rw / ro)
-        self.combo_access = StyledComboBox()
+        self.combo_access = StyledComboBox(borderless=True)
         self.combo_access.addItems(["Read/Write ---rw", "Read-only ---ro"])
         self.combo_access.setMinimumWidth(160)
         self.card_access = OptionRowCard(
@@ -1540,7 +1611,7 @@ class RepackSingleImgDialog(BaseOperationDialog):
         self.form_layout.addWidget(self.card_access)
 
         # 4. Packing Size (Auto Calculate Size / Custom size)
-        self.combo_size_mode = StyledComboBox()
+        self.combo_size_mode = StyledComboBox(borderless=True)
         self.combo_size_mode.addItems(["Auto Calculate Size", "Custom size"])
         self.combo_size_mode.setMinimumWidth(160)
         self.combo_size_mode.currentTextChanged.connect(self._on_size_mode_changed)
@@ -1556,7 +1627,7 @@ class RepackSingleImgDialog(BaseOperationDialog):
         self.form_layout.addWidget(self.card_size)
 
         # 5. Packing Format (raw, sparse, dat, dat.br)
-        self.combo_format = StyledComboBox()
+        self.combo_format = StyledComboBox(borderless=True)
         self.combo_format.addItems([
             "Recovery Flashable Format ---raw",
             "sparse",
@@ -1572,7 +1643,7 @@ class RepackSingleImgDialog(BaseOperationDialog):
         self.form_layout.addWidget(self.card_format)
 
         # 6. Repack From (IMG / Folder)
-        self.combo_from = StyledComboBox()
+        self.combo_from = StyledComboBox(borderless=True)
         self.combo_from.addItems(["IMG", "Folder"])
         self.combo_from.setMinimumWidth(100)
         if initial_mode == "Folder":
@@ -1606,7 +1677,7 @@ class RepackSingleImgDialog(BaseOperationDialog):
         self.form_layout.addWidget(self.card_erofs_level)
 
         # 9. EROFS Compression (lz4hc / lz4 / lzma / none)
-        self.combo_erofs_algo = StyledComboBox()
+        self.combo_erofs_algo = StyledComboBox(borderless=True)
         self.combo_erofs_algo.addItems(["lz4hc", "lz4", "lzma", "none"])
         self.combo_erofs_algo.setMinimumWidth(110)
         self.card_erofs_algo = OptionRowCard(
@@ -1675,45 +1746,68 @@ class RepackSuperDialog(BaseOperationDialog):
 
     def __init__(self, proj: ProjectPaths | None = None, parent: QWidget | None = None) -> None:
         super().__init__("Repack super.img", parent=parent)
-        self.setFixedWidth(480)
+        self.setFixedSize(480, 560)
 
-        # 1. Packing type
-        self.add_section_header("Select packing type:")
-        self.combo_type = QComboBox()
+        # 1. Packing Type
+        self.combo_type = StyledComboBox(borderless=True)
         self.combo_type.addItems(["virtual_ab", "ab", "a_only"])
-        self.form_layout.addWidget(self.combo_type)
-        self.add_field_subtitle("Choose super partition slot type")
+        self.card_type = OptionRowCard("Packing\nType", self.combo_type)
+        self.form_layout.addWidget(self.card_type)
 
-        # 2. Packing format
-        self.add_section_header("Select packing format:")
-        self.combo_format = QComboBox()
+        # 2. Packing Format
+        self.combo_format = StyledComboBox(borderless=True)
         self.combo_format.addItems(["sparse", "raw"])
-        self.form_layout.addWidget(self.combo_format)
-        self.add_field_subtitle("Output image format")
+        self.card_format = OptionRowCard("Packing\nFormat", self.combo_format)
+        self.form_layout.addWidget(self.card_format)
 
-        # 3. Super partition total size (GB)
-        self.add_section_header("Super partition total size (GB):")
+        # 3. super.img Total Size
         self.edit_size = QLineEdit("8.5")
-        self.form_layout.addWidget(self.edit_size)
-        self.add_field_subtitle("Enter super partition size in gigabytes (e.g. 8.5 or 9.1)")
+        self.edit_size.setStyleSheet(
+            "background: transparent; border: none; color: #ffffff; font-size: 13px; padding: 4px 6px;"
+        )
+        self.card_size = OptionRowCard(
+            "super.img\nTotal Size",
+            self.edit_size,
+            subtitle="Enter in GB. Default: 8.5GB",
+        )
+        self.form_layout.addWidget(self.card_size)
 
-        # 4. Dynamic partition group name
-        self.add_section_header("Dynamic partition group name:")
+        # 4. Dynamic Partition
         self.edit_group = QLineEdit("qti_dynamic_partitions")
-        self.form_layout.addWidget(self.edit_group)
-        self.add_field_subtitle("Group name in super image (default: qti_dynamic_partitions)")
+        self.edit_group.setStyleSheet(
+            "background: transparent; border: none; color: #ffffff; font-size: 13px; padding: 4px 6px;"
+        )
+        self.card_group = OptionRowCard(
+            "Dynamic\nPartition",
+            self.edit_group,
+            subtitle="Use default if unsure",
+        )
+        self.form_layout.addWidget(self.card_group)
 
-        # 5. Partition image files
-        self.add_section_header("Select partition image files to pack:")
+        # 5. Partition image files selector
+        self.add_section_header("Select IMG files to pack:")
         candidates = []
         if proj:
-            candidates = [f for f in proj.images.glob("*.img") if f.name != "super.img"]
+            raw_cands = (
+                list(proj.images.glob("*.img")) + list(proj.project_dir.glob("*.img"))
+            )
+            seen = set()
+            for f in raw_cands:
+                if f.name.lower() != "super.img" and not f.name.startswith("."):
+                    res = f.resolve()
+                    if res not in seen:
+                        seen.add(res)
+                        candidates.append(f)
+
         self.file_picker = FileSelectField(
             candidate_files=candidates,
-            subtitle="Select partition img files under images/ directory",
+            subtitle="Detects files from ~/DNA project path",
             dialog_title="Select Partition Images for Super Image",
         )
         self.form_layout.addWidget(self.file_picker)
+
+    def get_selected_files(self) -> list[Path]:
+        return self.file_picker.get_selected_files()
 
     def get_parameters(self) -> dict[str, Any]:
         try:
@@ -1750,7 +1844,7 @@ class ImgSimgDialog(BaseOperationDialog):
         self.form_layout.addWidget(self.file_picker)
 
         self.add_section_header("Select conversion mode:")
-        self.combo_mode = QComboBox()
+        self.combo_mode = StyledComboBox()
         self.combo_mode.addItems(["Auto detect (Raw <-> Simg)", "Raw to Sparse (img2simg)", "Sparse to Raw (simg2img)"])
         self.form_layout.addWidget(self.combo_mode)
 
@@ -1772,7 +1866,7 @@ class CorePatchDsvDialog(BaseOperationDialog):
         )
 
         self.add_section_header("Select Android Version:")
-        self.combo_version = QComboBox()
+        self.combo_version = StyledComboBox()
         self.combo_version.addItems(["Android 13+", "Android 15+"])
         self.form_layout.addWidget(self.combo_version)
         self.add_field_subtitle("Choose Android version")
@@ -1802,7 +1896,7 @@ class DisableSecureScreenshotDialog(BaseOperationDialog):
         )
 
         self.add_section_header("Select Android Version:")
-        self.combo_version = QComboBox()
+        self.combo_version = StyledComboBox()
         self.combo_version.addItems(["Android 13+", "Android 15+"])
         self.form_layout.addWidget(self.combo_version)
         self.add_field_subtitle("Choose Android version")
@@ -1832,7 +1926,7 @@ class RemoveApkProtectionDialog(BaseOperationDialog):
         )
 
         self.add_section_header("Select Android Version:")
-        self.combo_version = QComboBox()
+        self.combo_version = StyledComboBox()
         self.combo_version.addItems(["Android 13+", "Android 15+"])
         self.form_layout.addWidget(self.combo_version)
         self.add_field_subtitle("Choose Android version")
@@ -1861,7 +1955,7 @@ class PatchVbmetaDialog(BaseOperationDialog):
         self.form_layout.addWidget(self.chk_delete_source)
 
         self.add_section_header("Select vbmeta Patch Type")
-        self.combo_patch_type = QComboBox()
+        self.combo_patch_type = StyledComboBox()
         self.combo_patch_type.addItems(["Disable dm-verity", "Disable dm-verification", "Disable both"])
         self.form_layout.addWidget(self.combo_patch_type)
         self.add_field_subtitle("Choose the type of patch to apply to vbmeta.img")
@@ -1907,7 +2001,7 @@ class DebloatRomDialog(BaseOperationDialog):
         )
 
         self.add_section_header("Select ROM Type:")
-        self.combo_rom_type = QComboBox()
+        self.combo_rom_type = StyledComboBox()
         self.combo_rom_type.addItems(["Miui/HyperOs Global", "Miui/HyperOs China"])
         self.form_layout.addWidget(self.combo_rom_type)
 
