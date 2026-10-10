@@ -134,3 +134,14 @@ def run_debloat(
         packages_affected=sorted(affected_packages),
         dry_run=dry_run,
     )
+
+
+def debloat_rom(
+    target_dir: Path | str,
+    profile: str = "global",
+    dry_run: bool = False,
+) -> DebloatResult:
+    """Load specified preset and run debloating on target directory."""
+    preset = load_debloat_preset(profile)
+    return run_debloat(target_dir, preset, dry_run=dry_run)
+

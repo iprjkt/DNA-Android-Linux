@@ -86,6 +86,22 @@ class ProjectPaths:
     def project_file(self) -> Path:
         return self.project_dir / "project.toml"
 
+    @property
+    def images(self) -> Path:
+        return self.images_dir
+
+    @property
+    def unpacked(self) -> Path:
+        return self.unpacked_dir
+
+    @property
+    def out(self) -> Path:
+        return self.out_dir
+
+    @property
+    def rom(self) -> Path:
+        return self.rom_dir
+
     def ensure_layout(self) -> None:
         """Create all project subdirectories if they do not exist."""
         for path in (

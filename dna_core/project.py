@@ -182,3 +182,12 @@ def get_current_project(project_override: str | None = None) -> Project:
     proj = Project(paths=ProjectPaths(project_dir=active_path))
     proj.load_metadata()
     return proj
+
+
+def get_active_project(project_override: str | None = None) -> Project | None:
+    """Get the currently active project, or None if none is active."""
+    try:
+        return get_current_project(project_override)
+    except (ValueError, FileNotFoundError):
+        return None
+

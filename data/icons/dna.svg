@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="dnaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e2029"/>
+      <stop offset="100%" stop-color="#111216"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded card -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bgGrad)" stroke="#38bdf8" stroke-width="2.5"/>
+  <!-- DNA Double Helix structure -->
+  <circle cx="38" cy="34" r="7" fill="#38bdf8"/>
+  <circle cx="90" cy="34" r="7" fill="#60a5fa"/>
+  <line x1="38" y1="34" x2="90" y2="34" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+
+  <circle cx="48" cy="52" r="6" fill="#38bdf8"/>
+  <circle cx="80" cy="52" r="6" fill="#60a5fa"/>
+  <line x1="48" y1="52" x2="80" y2="52" stroke="#60a5fa" stroke-width="3.5" stroke-linecap="round"/>
+
+  <circle cx="64" cy="68" r="8" fill="#ffffff"/>
+
+  <circle cx="80" cy="84" r="6" fill="#38bdf8"/>
+  <circle cx="48" cy="84" r="6" fill="#60a5fa"/>
+  <line x1="48" y1="84" x2="80" y2="84" stroke="#60a5fa" stroke-width="3.5" stroke-linecap="round"/>
+
+  <circle cx="90" cy="102" r="7" fill="#38bdf8"/>
+  <circle cx="38" cy="102" r="7" fill="#60a5fa"/>
+  <line x1="38" y1="102" x2="90" y2="102" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+</svg>

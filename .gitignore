@@ -67,3 +67,4 @@ tmp/
 *.swo
 *~
 .DS_Store
+UI_example/

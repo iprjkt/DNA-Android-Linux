@@ -23,12 +23,16 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
+gui = [
+    "PyQt6>=6.5.0",
+]
 
 [project.scripts]
 dna = "dna_cli.main:cli"
+dna-gui = "dna_gui.app:start_gui"
 
 [tool.hatch.build.targets.wheel]
-packages = ["dna_core", "dna_cli"]
+packages = ["dna_core", "dna_cli", "dna_tui", "dna_gui"]
 
 [tool.ruff]
 line-length = 100
