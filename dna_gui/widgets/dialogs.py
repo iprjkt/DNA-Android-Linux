@@ -22,6 +22,8 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSlider,
     QTableWidget,
     QTableWidgetItem,
@@ -672,8 +674,145 @@ class DoctorDialog(QDialog):
 # Reusable Extended Operation Dialog Components (UI_example/1)
 # =====================================================================
 
+def get_repack_partition_candidates(proj: ProjectPaths | None, mode: str = "all") -> list[Path]:
+    """Detect real partition targets from workspace: unpacked folders and partition .img files."""
+    if not proj:
+        return []
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+
+    # 1. Unpacked partition directories under ~/DNA/<project>/unpacked/
+    if mode in ("all", "folder") and proj.unpacked.is_dir():
+        for d in sorted(proj.unpacked.iterdir()):
+            if d.is_dir() and not d.name.startswith("."):
+                resolved = d.resolve()
+                if resolved not in seen:
+                    candidates.append(d)
+                    seen.add(resolved)
+
+    # 2. Partition image files under ~/DNA/<project>/images/ (excluding super.img)
+    if mode in ("all", "img") and proj.images.is_dir():
+        for f in sorted(proj.images.glob("*.img")):
+            if f.name.lower() != "super.img" and not f.name.startswith("."):
+                resolved = f.resolve()
+                if resolved not in seen:
+                    candidates.append(f)
+                    seen.add(resolved)
+
+    # 3. Partition image files directly under project root ~/DNA/<project>/ (excluding super.img)
+    if mode in ("all", "img") and proj.project_dir.is_dir():
+        for f in sorted(proj.project_dir.glob("*.img")):
+            if f.name.lower() != "super.img" and not f.name.startswith("."):
+                resolved = f.resolve()
+                if resolved not in seen:
+                    candidates.append(f)
+                    seen.add(resolved)
+
+    return candidates
+
+
+class StyledComboBox(QComboBox):
+    """QComboBox styled with a dark theme and translucent popup background to prevent white frames on Hyprland/Wayland."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet(
+            "QComboBox {"
+            "   background-color: #1c1d24;"
+            "   border: 1px solid #282a35;"
+            "   border-radius: 10px;"
+            "   padding: 8px 12px;"
+            "   color: #ffffff;"
+            "   font-size: 13px;"
+            "}"
+            "QComboBox:hover { border-color: #3b82f6; }"
+            "QComboBox::drop-down { border: none; width: 22px; }"
+        )
+        v = self.view()
+        v.setStyleSheet(
+            "QAbstractItemView {"
+            "   background-color: #181920;"
+            "   color: #ffffff;"
+            "   border: 1px solid #282a35;"
+            "   border-radius: 8px;"
+            "   padding: 4px;"
+            "   outline: none;"
+            "   selection-background-color: #2563eb;"
+            "   selection-color: #ffffff;"
+            "}"
+            "QAbstractItemView::item {"
+            "   min-height: 28px;"
+            "   padding: 4px 8px;"
+            "   border-radius: 4px;"
+            "   color: #cbd5e1;"
+            "}"
+            "QAbstractItemView::item:hover {"
+            "   background-color: #222533;"
+            "   color: #ffffff;"
+            "}"
+            "QAbstractItemView::item:selected {"
+            "   background-color: #2563eb;"
+            "   color: #ffffff;"
+            "}"
+        )
+
+    def showPopup(self) -> None:
+        popup = self.view().window()
+        if popup:
+            popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            popup.setStyleSheet("background-color: transparent; border: none;")
+        super().showPopup()
+
+
+class OptionRowCard(QFrame):
+    """Horizontal card with label on left, control on right, and optional subtitle note below.
+    Matches the card design in DNA-Android (Screenshot_2026-10-11-01-29-46-660).
+    """
+
+    def __init__(
+        self,
+        label_text: str,
+        widget: QWidget,
+        subtitle: str = "",
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setObjectName("option_row_card")
+        self.setStyleSheet(
+            "#option_row_card {"
+            "   background-color: #1c1d24;"
+            "   border: 1px solid #282a35;"
+            "   border-radius: 12px;"
+            "}"
+            "QLabel { border: none; background: transparent; }"
+        )
+        self.card_layout = QVBoxLayout(self)
+        self.card_layout.setContentsMargins(14, 10, 14, 10)
+        self.card_layout.setSpacing(6)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(12)
+
+        self.label = QLabel(label_text)
+        self.label.setStyleSheet("color: #ffffff; font-size: 13px; font-weight: 500;")
+        top_row.addWidget(self.label)
+        top_row.addStretch(1)
+
+        self.widget = widget
+        top_row.addWidget(self.widget)
+        self.card_layout.addLayout(top_row)
+
+        self.sub_lbl: QLabel | None = None
+        if subtitle:
+            self.sub_lbl = QLabel(subtitle)
+            self.sub_lbl.setWordWrap(True)
+            self.sub_lbl.setStyleSheet("color: #64748b; font-size: 11px;")
+            self.card_layout.addWidget(self.sub_lbl)
+
+
 class FileListSelectDialog(QDialog):
-    """Modal allowing multi-selection of project workspace files with checkboxes."""
+    """Modal allowing multi-selection of project workspace files with checkboxes and manual browsing."""
 
     def __init__(
         self,
@@ -684,7 +823,7 @@ class FileListSelectDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setFixedSize(460, 480)
+        self.setFixedSize(480, 500)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
         self.setStyleSheet(
             "QDialog {"
@@ -733,27 +872,52 @@ class FileListSelectDialog(QDialog):
         self.search_input.textChanged.connect(self._apply_filter)
         layout.addWidget(self.search_input)
 
+        self.empty_lbl = QLabel(
+            "No partition files detected in project. Click '+ Browse File...' or '+ Browse Folder...' to add one."
+        )
+        self.empty_lbl.setWordWrap(True)
+        self.empty_lbl.setStyleSheet("color: #64748b; font-size: 12px; padding: 10px;")
+        layout.addWidget(self.empty_lbl)
+        self.empty_lbl.setVisible(len(self.all_files) == 0)
+
         self.list_widget = QListWidget()
         for fp in self.all_files:
-            item = QListWidgetItem(fp.name)
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            check_state = Qt.CheckState.Checked if fp.resolve() in selected_set else Qt.CheckState.Unchecked
-            item.setCheckState(check_state)
-            item.setData(Qt.ItemDataRole.UserRole, fp)
-            self.list_widget.addItem(item)
+            self._add_item_widget(fp, checked=(fp.resolve() in selected_set))
         layout.addWidget(self.list_widget, stretch=1)
 
         quick_layout = QHBoxLayout()
+        quick_layout.setSpacing(8)
+
         sel_all_btn = QPushButton("Select All")
-        sel_all_btn.setStyleSheet("background: #1e293b; color: #94a3b8; border-radius: 6px; padding: 4px 8px; font-size: 11px;")
+        sel_all_btn.setStyleSheet(
+            "background: #1e293b; color: #94a3b8; border-radius: 6px; padding: 5px 10px; font-size: 11px;"
+        )
         sel_all_btn.clicked.connect(self._select_all)
         quick_layout.addWidget(sel_all_btn)
 
         desel_all_btn = QPushButton("Deselect All")
-        desel_all_btn.setStyleSheet("background: #1e293b; color: #94a3b8; border-radius: 6px; padding: 4px 8px; font-size: 11px;")
+        desel_all_btn.setStyleSheet(
+            "background: #1e293b; color: #94a3b8; border-radius: 6px; padding: 5px 10px; font-size: 11px;"
+        )
         desel_all_btn.clicked.connect(self._deselect_all)
         quick_layout.addWidget(desel_all_btn)
+
         quick_layout.addStretch(1)
+
+        browse_file_btn = QPushButton("+ Browse File...")
+        browse_file_btn.setStyleSheet(
+            "background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 500;"
+        )
+        browse_file_btn.clicked.connect(self._browse_file)
+        quick_layout.addWidget(browse_file_btn)
+
+        browse_folder_btn = QPushButton("+ Browse Folder...")
+        browse_folder_btn.setStyleSheet(
+            "background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 500;"
+        )
+        browse_folder_btn.clicked.connect(self._browse_folder)
+        quick_layout.addWidget(browse_folder_btn)
+
         layout.addLayout(quick_layout)
 
         btn_layout = QHBoxLayout()
@@ -773,6 +937,15 @@ class FileListSelectDialog(QDialog):
         btn_layout.addWidget(confirm_btn)
         layout.addLayout(btn_layout)
 
+    def _add_item_widget(self, fp: Path, checked: bool = False) -> None:
+        display_name = f"📁  {fp.name} (Folder)" if fp.is_dir() else f"💿  {fp.name}"
+        item = QListWidgetItem(display_name)
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+        item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        item.setData(Qt.ItemDataRole.UserRole, fp)
+        self.list_widget.addItem(item)
+        self.empty_lbl.setVisible(False)
+
     def _select_all(self) -> None:
         for i in range(self.list_widget.count()):
             self.list_widget.item(i).setCheckState(Qt.CheckState.Checked)
@@ -786,6 +959,37 @@ class FileListSelectDialog(QDialog):
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
             item.setHidden(filter_text not in item.text().lower())
+
+    def _browse_file(self) -> None:
+        start_dir = str(self.all_files[0].parent) if self.all_files else str(Path.home())
+        chosen, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Partition Image File",
+            start_dir,
+            "Partition Images (*.img *.bin *.raw);;All Files (*)",
+        )
+        if chosen:
+            self._add_custom_path(Path(chosen))
+
+    def _browse_folder(self) -> None:
+        start_dir = str(self.all_files[0].parent) if self.all_files else str(Path.home())
+        chosen = QFileDialog.getExistingDirectory(
+            self,
+            "Select Unpacked Partition Folder",
+            start_dir,
+        )
+        if chosen:
+            self._add_custom_path(Path(chosen))
+
+    def _add_custom_path(self, fp: Path) -> None:
+        resolved = fp.resolve()
+        for i in range(self.list_widget.count()):
+            existing = self.list_widget.item(i).data(Qt.ItemDataRole.UserRole)
+            if isinstance(existing, Path) and existing.resolve() == resolved:
+                self.list_widget.item(i).setCheckState(Qt.CheckState.Checked)
+                return
+        self.all_files.append(fp)
+        self._add_item_widget(fp, checked=True)
 
     def get_selected_files(self) -> list[Path]:
         selected = []
@@ -811,7 +1015,7 @@ class FileSelectField(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.candidate_files = candidate_files or []
+        self.candidate_files = list(candidate_files or [])
         self.selected_files: list[Path] = []
         self.dialog_title = dialog_title
 
@@ -880,6 +1084,10 @@ class FileSelectField(QWidget):
             parent=self,
         )
         if dlg.exec() == QDialog.DialogCode.Accepted:
+            # Sync candidate_files if custom files were browsed
+            for f in dlg.all_files:
+                if f not in self.candidate_files:
+                    self.candidate_files.append(f)
             self.selected_files = dlg.get_selected_files()
             self._update_display()
             self.selection_changed.emit()
@@ -1050,19 +1258,36 @@ class BaseOperationDialog(QDialog):
             "QComboBox {"
             "   background-color: #1c1d24;"
             "   border: 1px solid #282a35;"
-            "   border-radius: 12px;"
-            "   padding: 10px 14px;"
+            "   border-radius: 10px;"
+            "   padding: 8px 12px;"
             "   color: #ffffff;"
             "   font-size: 13px;"
             "}"
-            "QComboBox::drop-down { border: none; width: 24px; }"
+            "QComboBox:hover { border-color: #3b82f6; }"
+            "QComboBox::drop-down { border: none; width: 22px; }"
             "QComboBox QAbstractItemView {"
-            "   background-color: #1c1d24;"
+            "   background-color: #181920;"
+            "   color: #ffffff;"
             "   border: 1px solid #282a35;"
             "   border-radius: 8px;"
-            "   selection-background-color: #2563eb;"
-            "   color: #ffffff;"
             "   padding: 4px;"
+            "   outline: none;"
+            "   selection-background-color: #2563eb;"
+            "   selection-color: #ffffff;"
+            "}"
+            "QComboBox QAbstractItemView::item {"
+            "   min-height: 28px;"
+            "   padding: 4px 8px;"
+            "   border-radius: 4px;"
+            "   color: #cbd5e1;"
+            "}"
+            "QComboBox QAbstractItemView::item:hover {"
+            "   background-color: #222533;"
+            "   color: #ffffff;"
+            "}"
+            "QComboBox QAbstractItemView::item:selected {"
+            "   background-color: #2563eb;"
+            "   color: #ffffff;"
             "}"
             "QLineEdit {"
             "   background-color: #1c1d24;"
@@ -1095,12 +1320,24 @@ class BaseOperationDialog(QDialog):
             sub_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; line-height: 1.4;")
             self.main_layout.addWidget(sub_lbl)
 
-        # Form layout
-        self.form_layout = QVBoxLayout()
+        # Scroll Area for Form items
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { border: none; background: transparent; width: 6px; margin: 0; }"
+            "QScrollBar::handle:vertical { background: #334155; min-height: 20px; border-radius: 3px; }"
+            "QScrollBar::handle:vertical:hover { background: #475569; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+        )
+        self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background: transparent;")
+        self.form_layout = QVBoxLayout(self.scroll_content)
+        self.form_layout.setContentsMargins(0, 0, 4, 0)
         self.form_layout.setSpacing(12)
-        self.main_layout.addLayout(self.form_layout)
-
-        self.main_layout.addStretch(1)
+        self.scroll_area.setWidget(self.scroll_content)
+        self.main_layout.addWidget(self.scroll_area, stretch=1)
 
         # Action Buttons Footer
         footer_layout = QHBoxLayout()
@@ -1267,111 +1504,169 @@ class RepackSingleImgDialog(BaseOperationDialog):
 
     def __init__(self, proj: ProjectPaths | None = None, parent: QWidget | None = None) -> None:
         super().__init__("Repack single img partition", parent=parent)
-        self.setFixedWidth(480)
+        self.setFixedSize(480, 720)
+        self.proj = proj
 
-        # 1. Partition selector
-        self.add_section_header("Select partition to repack")
-        self.combo_partition = QComboBox()
-        unpacked_names = []
-        if proj and proj.unpacked.is_dir():
-            unpacked_names = [d.name for d in proj.unpacked.iterdir() if d.is_dir()]
-        if not unpacked_names:
-            unpacked_names = ["system", "vendor", "product", "system_ext", "odm"]
-        self.combo_partition.addItems(unpacked_names)
-        self.form_layout.addWidget(self.combo_partition)
-        self.add_field_subtitle("Choose unpacked partition folder to repack")
+        # Detect candidate partition targets from workspace
+        img_candidates = get_repack_partition_candidates(proj, mode="img")
+        folder_candidates = get_repack_partition_candidates(proj, mode="folder")
+        initial_mode = "Folder" if (not img_candidates and folder_candidates) else "IMG"
+        initial_candidates = folder_candidates if initial_mode == "Folder" else (img_candidates or folder_candidates)
 
-        # 2. Packing method (filesystem)
-        self.add_section_header("Select packing method:")
-        self.combo_method = QComboBox()
+        # 1. Target selector (Card matching top item in Screenshot_2026-10-11-01-29-46-660)
+        self.file_picker = FileSelectField(
+            candidate_files=initial_candidates,
+            subtitle="Supports multiple repacking; tool will automatically detect image format",
+            dialog_title="Select Partition to Repack",
+        )
+        self.form_layout.addWidget(self.file_picker)
+
+        # 2. Packing Method (ext4 / erofs / f2fs)
+        self.combo_method = StyledComboBox()
         self.combo_method.addItems(["ext4", "erofs", "f2fs"])
-        self.combo_method.currentTextChanged.connect(self._on_method_changed)
-        self.form_layout.addWidget(self.combo_method)
-        self.add_field_subtitle("Packing file system type")
+        self.combo_method.setMinimumWidth(120)
+        self.card_method = OptionRowCard("Packing Method", self.combo_method)
+        self.form_layout.addWidget(self.card_method)
 
-        # 3. Partition access rights
-        self.add_section_header("Select partition access rights:")
-        self.combo_access = QComboBox()
-        self.combo_access.addItems(["Read-only (ro)", "Read-write (rw)"])
-        self.form_layout.addWidget(self.combo_access)
-        self.add_field_subtitle("Read-only partition filesystem takes less space")
+        # 3. Partition Access (rw / ro)
+        self.combo_access = StyledComboBox()
+        self.combo_access.addItems(["Read/Write ---rw", "Read-only ---ro"])
+        self.combo_access.setMinimumWidth(160)
+        self.card_access = OptionRowCard(
+            "Partition Access",
+            self.combo_access,
+            subtitle="Note: Only applicable when packing ext4",
+        )
+        self.form_layout.addWidget(self.card_access)
 
-        # 4. Packing size
-        self.add_section_header("Select packing size:")
-        self.combo_size_mode = QComboBox()
-        self.combo_size_mode.addItems(["Automatically calculate", "Custom size"])
+        # 4. Packing Size (Auto Calculate Size / Custom size)
+        self.combo_size_mode = StyledComboBox()
+        self.combo_size_mode.addItems(["Auto Calculate Size", "Custom size"])
+        self.combo_size_mode.setMinimumWidth(160)
         self.combo_size_mode.currentTextChanged.connect(self._on_size_mode_changed)
-        self.form_layout.addWidget(self.combo_size_mode)
-
+        self.card_size = OptionRowCard(
+            "Packing Size",
+            self.combo_size_mode,
+            subtitle="Note: Only applicable when packing ext4",
+        )
         self.custom_size_edit = QLineEdit("4096")
         self.custom_size_edit.setPlaceholderText("Enter size in MB (e.g. 4096)")
         self.custom_size_edit.hide()
-        self.form_layout.addWidget(self.custom_size_edit)
-        self.add_field_subtitle("Automatic calculation adjusts size dynamically")
+        self.card_size.card_layout.addWidget(self.custom_size_edit)
+        self.form_layout.addWidget(self.card_size)
 
-        # 5. Output packing format
-        self.add_section_header("Select packing format:")
-        self.combo_format = QComboBox()
-        self.combo_format.addItems(["raw", "simg", "dat", "dat.br"])
-        self.combo_format.currentTextChanged.connect(self._on_format_changed)
-        self.form_layout.addWidget(self.combo_format)
-        self.add_field_subtitle("Choose output image format")
+        # 5. Packing Format (raw, sparse, dat, dat.br)
+        self.combo_format = StyledComboBox()
+        self.combo_format.addItems([
+            "Recovery Flashable Format ---raw",
+            "sparse",
+            "dat",
+            "dat.br",
+        ])
+        self.combo_format.setMinimumWidth(210)
+        self.card_format = OptionRowCard(
+            "Packing Format",
+            self.combo_format,
+            subtitle="Note: Only applicable when packing ext4/erofs",
+        )
+        self.form_layout.addWidget(self.card_format)
 
-        # 6. Brotli compression level (when dat.br is chosen)
-        self.brotli_header = self.add_section_header("Select Brotli compression level")
-        self.stepper_brotli = NumberStepper(1, 11, 3, subtitle="Brotli compression level (default 3)")
-        self.form_layout.addWidget(self.stepper_brotli)
-        self.brotli_header.hide()
-        self.stepper_brotli.hide()
+        # 6. Repack From (IMG / Folder)
+        self.combo_from = StyledComboBox()
+        self.combo_from.addItems(["IMG", "Folder"])
+        self.combo_from.setMinimumWidth(100)
+        if initial_mode == "Folder":
+            self.combo_from.setCurrentText("Folder")
+        self.combo_from.currentTextChanged.connect(self._on_repack_from_changed)
+        self.card_from = OptionRowCard(
+            "Repack From",
+            self.combo_from,
+            subtitle="Note: Only applicable when packing ext4/erofs",
+        )
+        self.form_layout.addWidget(self.card_from)
 
-        # 7. EROFS controls (when erofs is chosen)
-        self.erofs_algo_header = self.add_section_header("Select EROFS compression algorithm")
-        self.combo_erofs_algo = QComboBox()
+        # 7. BR Compression (stepper 1 to 11, default 3)
+        self.stepper_brotli = NumberStepper(1, 11, 3)
+        self.stepper_brotli.setFixedWidth(200)
+        self.card_brotli = OptionRowCard(
+            "BR Compression",
+            self.stepper_brotli,
+            subtitle="Note: Only applies when repacking to BR; higher = slower",
+        )
+        self.form_layout.addWidget(self.card_brotli)
+
+        # 8. EROFS Level (stepper 1 to 9, default 8)
+        self.stepper_erofs = NumberStepper(1, 9, 8)
+        self.stepper_erofs.setFixedWidth(200)
+        self.card_erofs_level = OptionRowCard(
+            "EROFS Level",
+            self.stepper_erofs,
+            subtitle="Only applies when repacking to EROFS or F2FS",
+        )
+        self.form_layout.addWidget(self.card_erofs_level)
+
+        # 9. EROFS Compression (lz4hc / lz4 / lzma / none)
+        self.combo_erofs_algo = StyledComboBox()
         self.combo_erofs_algo.addItems(["lz4hc", "lz4", "lzma", "none"])
-        self.form_layout.addWidget(self.combo_erofs_algo)
-        self.erofs_level_header = self.add_section_header("Select EROFS compression level")
-        self.stepper_erofs = NumberStepper(1, 9, 8, subtitle="EROFS compression level (default 8)")
-        self.form_layout.addWidget(self.stepper_erofs)
-        self.erofs_algo_header.hide()
-        self.combo_erofs_algo.hide()
-        self.erofs_level_header.hide()
-        self.stepper_erofs.hide()
+        self.combo_erofs_algo.setMinimumWidth(110)
+        self.card_erofs_algo = OptionRowCard(
+            "EROFS Compression",
+            self.combo_erofs_algo,
+            subtitle="Note: Only applies when packing EROFS",
+        )
+        self.form_layout.addWidget(self.card_erofs_algo)
 
-        # Additional Toggles
-        self.chk_compress_ext4 = CheckboxCard("Compress ext4 image", "Use make_ext4fs -s sparse", checked=False)
-        self.form_layout.addWidget(self.chk_compress_ext4)
+        # 10. Compress ext4 Image Size (toggle switch)
+        self.switch_compress_ext4 = ToggleSwitch(checked=False)
+        self.card_compress_ext4 = OptionRowCard(
+            "Compress ext4 Image Size",
+            self.switch_compress_ext4,
+            subtitle="Note: This switch only affects ext4 image repacking",
+        )
+        self.form_layout.addWidget(self.card_compress_ext4)
 
-        self.chk_remove_avb = CheckboxCard("Remove AVB and data encryption", "Automatically patch fstab / vbmeta", checked=False)
-        self.form_layout.addWidget(self.chk_remove_avb)
+        # 11. Remove AVB, Data Encryption (toggle switch)
+        self.switch_remove_avb = ToggleSwitch(checked=False)
+        self.card_remove_avb = OptionRowCard(
+            "Remove AVB, Data Encryption",
+            self.switch_remove_avb,
+            subtitle="Note: This will modify fstab. May cause boot failure on some devices",
+        )
+        self.form_layout.addWidget(self.card_remove_avb)
 
-    def _on_method_changed(self, method: str) -> None:
-        is_erofs = method == "erofs"
-        self.erofs_algo_header.setVisible(is_erofs)
-        self.combo_erofs_algo.setVisible(is_erofs)
-        self.erofs_level_header.setVisible(is_erofs)
-        self.stepper_erofs.setVisible(is_erofs)
+    def _on_repack_from_changed(self, text: str) -> None:
+        mode = "folder" if text == "Folder" else "img"
+        new_cands = get_repack_partition_candidates(self.proj, mode=mode)
+        for f in self.file_picker.candidate_files:
+            if (mode == "folder" and f.is_dir()) or (mode == "img" and not f.is_dir()):
+                if f not in new_cands:
+                    new_cands.append(f)
+        self.file_picker.set_candidate_files(new_cands)
 
     def _on_size_mode_changed(self, mode: str) -> None:
         self.custom_size_edit.setVisible("Custom" in mode)
 
-    def _on_format_changed(self, fmt: str) -> None:
-        is_br = fmt == "dat.br"
-        self.brotli_header.setVisible(is_br)
-        self.stepper_brotli.setVisible(is_br)
+    def get_selected_files(self) -> list[Path]:
+        return self.file_picker.get_selected_files()
 
     def get_parameters(self) -> dict[str, Any]:
+        selected = self.file_picker.get_selected_files()
+        cands = self.file_picker.candidate_files
+        partition_name = selected[0].stem if selected else (cands[0].stem if cands else "")
         return {
-            "partition": self.combo_partition.currentText(),
+            "selected_files": selected,
+            "partition": partition_name,
+            "repack_from": self.combo_from.currentText(),
             "fs_type": self.combo_method.currentText(),
-            "access_rights": "ro" if "ro" in self.combo_access.currentText() else "rw",
+            "access_rights": "ro" if "ro" in self.combo_access.currentText().lower() else "rw",
             "size_mode": self.combo_size_mode.currentText(),
-            "custom_size_mb": int(self.custom_size_edit.text() or "4096") if self.combo_size_mode.currentText() == "Custom size" else None,
+            "custom_size_mb": int(self.custom_size_edit.text() or "4096") if "custom" in self.combo_size_mode.currentText().lower() else None,
             "format": self.combo_format.currentText(),
             "brotli_level": self.stepper_brotli.get_value(),
             "erofs_algo": self.combo_erofs_algo.currentText(),
             "erofs_level": self.stepper_erofs.get_value(),
-            "compress_ext4": self.chk_compress_ext4.is_checked(),
-            "remove_avb": self.chk_remove_avb.is_checked(),
+            "compress_ext4": self.switch_compress_ext4.isChecked(),
+            "remove_avb": self.switch_remove_avb.isChecked(),
         }
 
 

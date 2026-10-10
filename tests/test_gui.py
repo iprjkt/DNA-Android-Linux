@@ -335,6 +335,99 @@ class TestDnaGui(unittest.TestCase):
             d_debloat = DebloatRomDialog()
             self.assertEqual(d_debloat.get_rom_type(), "global")
 
+    def test_repack_single_img_dynamic_detection(self) -> None:
+        """Verify dynamic partition detection without hardcoding and mode switching."""
+        from dna_core.paths import ProjectPaths
+        from dna_gui.widgets.dialogs import RepackSingleImgDialog, get_repack_partition_candidates
+
+        with TemporaryDirectory() as tmpdir:
+            proj_dir = Path(tmpdir)
+            p = ProjectPaths(project_dir=proj_dir)
+
+            # 1. Empty project: must return empty list (no fake hardcoded fallbacks!)
+            self.assertEqual(get_repack_partition_candidates(p), [])
+            d_empty = RepackSingleImgDialog(proj=p)
+            self.assertEqual(len(d_empty.file_picker.candidate_files), 0)
+
+            # 2. Project with real partitions
+            p.images.mkdir(parents=True, exist_ok=True)
+            p.unpacked.mkdir(parents=True, exist_ok=True)
+            (p.unpacked / "custom_sys").mkdir()
+            (p.unpacked / "custom_vendor").mkdir()
+            (p.images / "boot.img").touch()
+            (p.images / "super.img").touch()  # Should be excluded!
+
+            all_cands = get_repack_partition_candidates(p, mode="all")
+            cand_names = [c.name for c in all_cands]
+            self.assertIn("custom_sys", cand_names)
+            self.assertIn("custom_vendor", cand_names)
+            self.assertIn("boot.img", cand_names)
+            self.assertNotIn("super.img", cand_names)
+
+            # Test mode filtering
+            folder_cands = get_repack_partition_candidates(p, mode="folder")
+            self.assertEqual({c.name for c in folder_cands}, {"custom_sys", "custom_vendor"})
+
+            img_cands = get_repack_partition_candidates(p, mode="img")
+            self.assertEqual({c.name for c in img_cands}, {"boot.img"})
+
+            # RepackSingleImgDialog switching between IMG and Folder
+            dlg = RepackSingleImgDialog(proj=p)
+            self.assertGreaterEqual(len(dlg.file_picker.candidate_files), 1)
+
+            dlg.combo_from.setCurrentText("Folder")
+            folder_files = [f.name for f in dlg.file_picker.candidate_files]
+            self.assertIn("custom_sys", folder_files)
+            self.assertNotIn("boot.img", folder_files)
+
+            dlg.combo_from.setCurrentText("IMG")
+            img_files = [f.name for f in dlg.file_picker.candidate_files]
+            self.assertIn("boot.img", img_files)
+            self.assertNotIn("custom_sys", img_files)
+
+            # Test parameters
+            dlg.file_picker.set_selected_files([p.images / "boot.img"])
+            params = dlg.get_parameters()
+            self.assertEqual(params["partition"], "boot")
+            self.assertEqual(params["selected_files"], [p.images / "boot.img"])
+            self.assertIn(params["fs_type"], ["ext4", "erofs", "f2fs"])
+            self.assertFalse(params["compress_ext4"])
+            self.assertFalse(params["remove_avb"])
+
+            dlg.switch_compress_ext4.setChecked(True)
+            dlg.switch_remove_avb.setChecked(True)
+            params = dlg.get_parameters()
+            self.assertTrue(params["compress_ext4"])
+            self.assertTrue(params["remove_avb"])
+
+    def test_file_list_select_browsing(self) -> None:
+        """Verify FileListSelectDialog allows manual browsing and adding files/folders."""
+        from dna_gui.widgets.dialogs import FileListSelectDialog
+
+        with TemporaryDirectory() as tmpdir:
+            f1 = Path(tmpdir) / "part1.img"
+            f1.touch()
+            f2 = Path(tmpdir) / "my_custom_folder"
+            f2.mkdir()
+
+            dlg = FileListSelectDialog("Test Selector", files=[])
+            self.assertEqual(len(dlg.all_files), 0)
+            self.assertEqual(len(dlg.get_selected_files()), 0)
+
+            # Add file manually
+            dlg._add_custom_path(f1)
+            self.assertEqual(len(dlg.all_files), 1)
+            self.assertEqual(dlg.get_selected_files(), [f1])
+
+            # Add folder manually
+            dlg._add_custom_path(f2)
+            self.assertEqual(len(dlg.all_files), 2)
+            self.assertEqual(dlg.get_selected_files(), [f1, f2])
+
+            # Duplicate add is idempotent
+            dlg._add_custom_path(f1)
+            self.assertEqual(len(dlg.all_files), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
