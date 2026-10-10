@@ -340,3 +340,20 @@ def run_tool(
         capture_output=capture_output,
         text=True,
     )
+
+
+def run_doctor() -> dict[str, Any]:
+    """Run diagnostics across all tools and return a structured summary."""
+    statuses = check_all_tools()
+    tools_list = []
+    for s in statuses:
+        tools_list.append({
+            "name": s.definition.name,
+            "found": s.installed,
+            "version": s.version,
+            "path": str(s.path) if s.path else None,
+            "required_by": s.definition.description,
+            "category": s.definition.category,
+        })
+    return {"tools": tools_list, "distro": detect_distribution()}
+

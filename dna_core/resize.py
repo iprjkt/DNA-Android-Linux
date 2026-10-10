@@ -60,3 +60,8 @@ def resize_partition(
         pass
 
     return img_p
+
+
+# Convenience alias for resize_partition
+resize_ext4 = resize_partition
+

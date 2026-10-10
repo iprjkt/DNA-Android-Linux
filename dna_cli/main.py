@@ -10,6 +10,7 @@ from rich.console import Console
 from dna_cli import __version__
 from dna_cli.commands.convert import convert_group
 from dna_cli.commands.doctor import doctor_cmd
+from dna_cli.commands.gui import gui_cmd
 from dna_cli.commands.jar import jar_group
 from dna_cli.commands.patch import patch_group
 from dna_cli.commands.plugin import plugin_group
@@ -91,6 +92,7 @@ def cli(
 
 
 # Register command groups and commands
+cli.add_command(gui_cmd)
 cli.add_command(tui_cmd)
 cli.add_command(doctor_cmd)
 cli.add_command(project_group)

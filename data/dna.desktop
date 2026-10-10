@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=DNA-Linux
+GenericName=Android ROM Toolkit
+Comment=Native Linux (x86_64) Android ROM unpack, repack, format conversion, and patch toolkit
+Exec=dna gui
+Icon=dna
+Terminal=false
+Categories=Development;System;Utility;
+Keywords=Android;ROM;Unpack;Repack;Fastboot;Super;MIUI;HyperOS;
+StartupNotify=true
+StartupWMClass=dna-linux
