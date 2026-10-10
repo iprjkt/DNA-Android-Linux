@@ -13,7 +13,7 @@ Tracking progress across phases as defined in `README.md`.
 | **Phase 2 — Unpack / Repack / Convert** | Unpack bin/br/dat/img/zstd/super, repack img/zstd/super, format conversions | **Completed** | Full unpack/repack/convert pipeline. Magic-based filesystem auto-detection, ext4/erofs userspace extraction & repacking, SELinux/fs_config preservation, sdat2img/img2sdat, sparse conversions, super.img split/merge, resize2fs partition expansion, and 31/31 unit & round-trip tests passing. |
 | **Phase 3 — ROM Menu** | Debloat, remove oat, make ROM-RW, ROM decrypt | **Completed** | Data-driven debloat presets (global/china), oat directory cleanup, make-rw (fstab overlay and init cleanup), decrypt (force-encrypt removal), and 36/36 tests passing. |
 | **Phase 4 — Patch Menu** | vbmeta, integrity fix, SafetyCore, priv-app permissions, disable OTA, Xiaomi services | **Completed** | Lossless `build.prop` editor (`PropFile`), AVB `vbmeta.img` flag patcher, Play Integrity spoofing, SafetyCore placeholder injector, Priv-App permissions removal, Xiaomi OTA disable, and Xiaomi telemetry/services cleanup. 59/59 unit tests passing. |
-| **Phase 5 — Jar Menu** | Core patch DSV, remove APK protection, disable secure screenshot | Pending | Descriptor-based smali patching with apktool/baksmali/smali. |
+| **Phase 5 — Jar Menu** | Core patch DSV, remove APK protection, disable secure screenshot | **Completed** | Descriptor-based smali bytecode patcher via `apktool` for `services.jar`. Core Patch DSV (signature verification bypass), Remove APK Protection (installer/downgrade bypass), and Disable Secure Screenshot with Android 17 `CompletableFuture` crash fix. 65/65 unit tests passing. |
 | **Phase 6 — Plugins** | Plugin spec, importer, sandboxed execution, example plugin | Pending | TOML-based plugin format with sandboxed workspace execution. |
 | **Phase 7 — TUI** | Terminal UI mirroring Home -> Project Menu | Pending | Dark-themed Textual or curses interface. |
 | **Phase 8 — Docs & Release** | Packaging, man page, shell completions, PKGBUILD, .deb script | Pending | Distribution packages for Arch Linux and Debian/Ubuntu. |
@@ -55,3 +55,10 @@ Tracking progress across phases as defined in `README.md`.
   - `dna patch disable-xiaomi-services`: Data-driven removal via `data/patches/xiaomi_services.toml` targeting MIUIAnalytics, CloudService, Joyose, Daemon, MSA, MiuiTracking, MIService, and HybridPlatform.
   - CLI: `dna patch vbmeta`, `dna patch integrity-fix`, `dna patch safetycore`, `dna patch privapp-permissions`, `dna patch disable-ota`, `dna patch disable-xiaomi-services` all functional with `--dry-run`.
   - Automated tests: 59/59 tests passing via `python3 -m unittest discover tests`.
+- **Phase 5 Verification**:
+  - `dna_core/jar.py`: Framework `services.jar` decompilation and recompilation engine utilizing native `apktool`.
+  - Core Patch DSV: Descriptor-based smali bytecode rewriting targeting `compareSignatures`, `verifySignatures`, and `checkCapability` to bypass package signature checks.
+  - Remove APK Protection: Bypasses downgrade exceptions and package installer validity checks in `InstallPackageHelper` and `ScanPackageUtils`.
+  - Disable Secure Screenshot (DSS) + Android 17 Fix: Patches `WindowState.isSecureLocked()Z` to return `false` (0); inspects `PolicyEnforcerCallbacks.setScreenCaptureDisabled` return descriptor to inject `AndroidFuture.completedFuture(Boolean.TRUE)` rather than `return-void`, preventing the fatal `java.lang.VerifyError: [0x0] return-void not expected` bootloop crash analyzed in `/run/media/fxxyz73/sigeonpex/Project/logcat/reboot_crash.txt`.
+  - CLI: `dna jar core-patch-dsv`, `dna jar remove-apk-protection`, `dna jar disable-secure-screenshot`, and `dna jar patch-all` verified with `--dry-run` on real 32MB `services.jar` from testbed.
+  - Automated tests: 65/65 tests passing via `python3 -m unittest discover tests`.
