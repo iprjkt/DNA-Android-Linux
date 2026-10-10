@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -13,13 +13,120 @@ from PyQt6.QtWidgets import (
 )
 
 
+class CircleIconButton(QPushButton):
+    """Circular outlined vector icon button matching original DNA-Android UI."""
+
+    def __init__(self, icon_type: str, tooltip: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.icon_type = icon_type  # "power" or "info"
+        self.setFixedSize(36, 36)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(tooltip)
+        self._hovered = False
+
+    def enterEvent(self, event: Any) -> None:
+        self._hovered = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: Any) -> None:
+        self._hovered = False
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event: Any) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Border and background colors
+        if self._hovered:
+            if self.icon_type == "power":
+                bg_color = QColor("#3b151a")
+                border_color = QColor("#ef4444")
+                icon_color = QColor("#ef4444")
+            else:
+                bg_color = QColor("#1e293b")
+                border_color = QColor("#38bdf8")
+                icon_color = QColor("#38bdf8")
+        else:
+            bg_color = QColor("#181920")
+            border_color = QColor("#334155")
+            icon_color = QColor("#e2e8f0")
+
+        # Draw circle container
+        painter.setBrush(bg_color)
+        pen = QPen(border_color, 1.2)
+        painter.setPen(pen)
+        painter.drawEllipse(2, 2, 32, 32)
+
+        # Draw vector icon
+        if self.icon_type == "power":
+            icon_pen = QPen(icon_color, 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+            painter.setPen(icon_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            # Power arc: 260 degree arc with top gap
+            painter.drawArc(10, 10, 16, 16, 50 * 16, 260 * 16)
+            # Top vertical line
+            painter.drawLine(18, 9, 18, 17)
+        elif self.icon_type == "info":
+            painter.setPen(icon_color)
+            font = painter.font()
+            font.setFamily("-apple-system, Segoe UI, Roboto, sans-serif")
+            font.setPointSize(13)
+            font.setBold(True)
+            font.setItalic(True)
+            painter.setFont(font)
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "i")
+
+
+class BackButton(QPushButton):
+    """Circular back navigation button with crisp vector arrow."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedSize(36, 36)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Back")
+        self._hovered = False
+
+    def enterEvent(self, event: Any) -> None:
+        self._hovered = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: Any) -> None:
+        self._hovered = False
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event: Any) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bg = QColor("#262938") if self._hovered else QColor("#1a1c24")
+        border = QColor("#38bdf8") if self._hovered else QColor("#272a38")
+        fg = QColor("#38bdf8") if self._hovered else QColor("#f3f4f6")
+
+        painter.setBrush(bg)
+        painter.setPen(QPen(border, 1.2))
+        painter.drawEllipse(2, 2, 32, 32)
+
+        pen = QPen(fg, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        # Arrow shaft: from x=23 to x=13 at y=18
+        painter.drawLine(23, 18, 13, 18)
+        # Top barb: from (17, 13) to (13, 18)
+        painter.drawLine(17, 13, 13, 18)
+        # Bottom barb: from (17, 23) to (13, 18)
+        painter.drawLine(17, 23, 13, 18)
+
+
 class HeaderWidget(QWidget):
     """Top bar containing navigation back button, title, project badge, and global actions."""
 
     back_clicked = pyqtSignal()
     project_badge_clicked = pyqtSignal()
     doctor_clicked = pyqtSignal()
-    console_toggle_clicked = pyqtSignal()
+    info_clicked = pyqtSignal()
     quit_clicked = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -29,30 +136,17 @@ class HeaderWidget(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 8, 16, 8)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
         # Back button
-        self.back_btn = QPushButton("←")
-        self.back_btn.setFixedSize(36, 36)
-        self.back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.back_btn.setStyleSheet(
-            "QPushButton {"
-            "   background: #1a1c24;"
-            "   border: 1px solid #272a38;"
-            "   border-radius: 18px;"
-            "   color: #f3f4f6;"
-            "   font-size: 18px;"
-            "   font-weight: bold;"
-            "   padding-bottom: 2px;"
-            "}"
-            "QPushButton:hover { background: #262938; border-color: #38bdf8; color: #38bdf8; }"
-        )
+        self.back_btn = BackButton(self)
         self.back_btn.clicked.connect(self.back_clicked.emit)
         self.back_btn.setVisible(False)
         layout.addWidget(self.back_btn)
 
+
         # Title
-        self.title_label = QLabel("DNA-Linux")
+        self.title_label = QLabel("DNA-Android")
         title_font = QFont()
         title_font.setPointSize(14)
         title_font.setBold(True)
@@ -93,27 +187,16 @@ class HeaderWidget(QWidget):
         self.doctor_btn.clicked.connect(self.doctor_clicked.emit)
         layout.addWidget(self.doctor_btn)
 
-        # Logs / Console Toggle
-        self.console_btn = QPushButton("⌨ Logs")
-        self.console_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.console_btn.setStyleSheet(
-            "QPushButton { background: #1a1c24; border: 1px solid #272a38; border-radius: 8px; color: #cbd5e1; font-size: 11px; padding: 5px 10px; }"
-            "QPushButton:hover { background: #262938; border-color: #3b82f6; color: #60a5fa; }"
-        )
-        self.console_btn.clicked.connect(self.console_toggle_clicked.emit)
-        layout.addWidget(self.console_btn)
-
-        # Quit / Power button
-        self.quit_btn = QPushButton("⏻")
-        self.quit_btn.setFixedSize(36, 36)
-        self.quit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.quit_btn.setToolTip("Exit Application")
-        self.quit_btn.setStyleSheet(
-            "QPushButton { background: #27171a; border: 1px solid #4a1d24; border-radius: 18px; color: #f87171; font-size: 15px; font-weight: bold; }"
-            "QPushButton:hover { background: #7f1d1d; color: #ffffff; border-color: #ef4444; }"
-        )
+        # Power / Exit button (IEC Standby icon)
+        self.quit_btn = CircleIconButton(icon_type="power", tooltip="Exit Application")
         self.quit_btn.clicked.connect(self.quit_clicked.emit)
         layout.addWidget(self.quit_btn)
+
+        # Info button (ⓘ icon)
+        self.info_btn = CircleIconButton(icon_type="info", tooltip="About · DNA")
+        self.info_btn.clicked.connect(self.info_clicked.emit)
+        layout.addWidget(self.info_btn)
+
 
     def set_title(self, title: str, show_back: bool = False) -> None:
         """Update header title and back button visibility."""

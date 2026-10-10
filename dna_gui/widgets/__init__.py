@@ -2,7 +2,14 @@
 
 from dna_gui.widgets.card_button import CardItemWidget
 from dna_gui.widgets.console import ConsoleWidget
-from dna_gui.widgets.dialogs import ConfirmDialog, DoctorDialog, InputDialog, SelectProjectDialog
+from dna_gui.widgets.dialogs import (
+    AboutDialog,
+    ConfirmDialog,
+    DeleteProjectDialog,
+    DoctorDialog,
+    InputDialog,
+    SelectProjectDialog,
+)
 from dna_gui.widgets.header import HeaderWidget
 
 __all__ = [
@@ -10,7 +17,10 @@ __all__ = [
     "ConsoleWidget",
     "HeaderWidget",
     "SelectProjectDialog",
+    "DeleteProjectDialog",
     "DoctorDialog",
     "ConfirmDialog",
     "InputDialog",
+    "AboutDialog",
 ]
+

@@ -12,8 +12,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from dna_core.paths import get_default_workspace_root
 from dna_core.project import get_active_project
 from dna_gui.widgets.card_button import CardItemWidget
+
 
 
 class HomeView(QWidget):
@@ -113,8 +115,9 @@ class HomeView(QWidget):
 
         disc_body = QLabel(
             "This tool will not actively damage the phone system, all consequences caused by "
-            "improper use are borne by the user.\n\n"
-            "In one sentence: Use it if you love it, uninstall if you don't.\n\n"
+            "improper use are borne by the user\n\n"
+            "In one sentence: Use it if you love it, uninstall if you don't\n\n"
+            "If you find problems using it on your phone, please contact me to fix it, QQ: 903501507\n\n"
             "Moded By @SoutaEver | Ported to Linux by @iprjkt\n"
             "Pure native x86_64 toolchain for Arch Linux / Debian / Ubuntu."
         )
@@ -131,12 +134,18 @@ class HomeView(QWidget):
         self.update_active_project()
 
     def update_active_project(self) -> None:
-        """Refresh active project label on Select Project card."""
+        """Refresh active project label on Select Project card matching original UI format."""
         active = get_active_project()
         if active:
+            parent_dir = str(active.directory.parent)
             self.item_select.set_subtitle(
-                f"Current project: {active.directory}\n{active.name}",
+                f"Current project: {parent_dir}\n{active.directory.name}",
                 color="#38bdf8",
             )
         else:
-            self.item_select.set_subtitle("Current project: None selected", color="#94a3b8")
+            default_root = str(get_default_workspace_root())
+            self.item_select.set_subtitle(
+                f"Current project: {default_root}\nNo project selected",
+                color="#94a3b8",
+            )
+
