@@ -538,40 +538,69 @@ class MainWindow(QMainWindow):
         dlg = RepackSingleImgDialog(proj, self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             params = dlg.get_parameters()
-            chosen_name = params["partition"]
-            in_dir = proj.unpacked / chosen_name
-            if not in_dir.is_dir():
-                QMessageBox.warning(self, "Directory Not Found", f"Unpacked folder '{chosen_name}' not found.")
+            selected = dlg.get_selected_files()
+            if not selected:
+                first_name = params.get("partition")
+                if first_name:
+                    cand_path = proj.unpacked / first_name
+                    if not cand_path.is_dir():
+                        cand_path = proj.images / f"{first_name}.img"
+                    if cand_path.exists():
+                        selected = [cand_path]
+            if not selected:
+                QMessageBox.warning(self, "No Selection", "Please select at least one partition or image to repack.")
                 return
 
             fs_type = params["fs_type"]
-            fmt = params["format"]
+            fmt_raw = params["format"]
+            if "dat.br" in fmt_raw or "br" in fmt_raw:
+                fmt = "br"
+            elif "dat" in fmt_raw:
+                fmt = "dat"
+            elif "sparse" in fmt_raw or "simg" in fmt_raw:
+                fmt = "sparse"
+            else:
+                fmt = "raw"
+
             size_mb = params.get("custom_size_mb")
             size_bytes = (size_mb * 1024 * 1024) if size_mb else None
             brotli_level = params["brotli_level"]
             erofs_algo = params["erofs_algo"]
             erofs_level = params["erofs_level"]
-            out_img = proj.images / f"{chosen_name}.img"
+            remove_avb = params.get("remove_avb", False)
 
-            def _do_repack() -> Path:
-                res = repack_image(
-                    in_dir,
-                    out_img=out_img,
-                    fs_type=fs_type,
-                    output_format=fmt,
-                    size_bytes=size_bytes,
-                    compress_erofs=erofs_algo,
-                    erofs_level=erofs_level,
-                    brotli_level=brotli_level,
-                )
-                if params.get("remove_avb"):
-                    try:
-                        decrypt_rom(in_dir)
-                    except Exception:
-                        pass
-                return res
+            def _do_repack_all() -> None:
+                for target in selected:
+                    if target.is_dir():
+                        part_name = target.name
+                        in_dir = target
+                    else:
+                        part_name = target.stem
+                        in_dir = proj.unpacked / part_name
+                        if not in_dir.is_dir():
+                            unpack_image(target, in_dir)
 
-            self.run_async_task(f"Repack {chosen_name}.img ({fs_type})", _do_repack)
+                    if remove_avb:
+                        try:
+                            decrypt_rom(in_dir)
+                        except Exception:
+                            pass
+
+                    out_img = proj.images / f"{part_name}.img"
+                    repack_image(
+                        in_dir,
+                        out_img=out_img,
+                        fs_type=fs_type,
+                        output_format=fmt,
+                        size_bytes=size_bytes,
+                        compress_erofs=erofs_algo,
+                        erofs_level=erofs_level,
+                        brotli_level=brotli_level,
+                    )
+
+            first_name = selected[0].name
+            title_text = f"Repack {first_name} ({fs_type})" if len(selected) == 1 else f"Repack {len(selected)} Partitions ({fs_type})"
+            self.run_async_task(title_text, _do_repack_all)
 
     def _action_repack_zstd(self) -> None:
         proj = self._require_project()
