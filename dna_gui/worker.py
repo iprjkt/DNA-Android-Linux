@@ -83,7 +83,6 @@ class WorkerThread(QThread):
 
     def run(self) -> None:
         self.started_signal.emit(self.task_name)
-        self.log_signal.emit(f"=== Starting Task: {self.task_name} ===")
 
         # Hook into root logger and DNA logger
         handler = SignalLogHandler(self.log_signal.emit)
@@ -102,7 +101,6 @@ class WorkerThread(QThread):
 
         try:
             self.result = self.target(*self.args, **self.kwargs)
-            self.log_signal.emit(f"=== Task Finished Successfully: {self.task_name} ===")
             self.finished_signal.emit(self.result)
         except Exception as exc:
             err_trace = traceback.format_exc()

@@ -125,27 +125,35 @@ class ConsoleWidget(QWidget):
         stripped = line.strip()
         upper = stripped.upper()
 
-        if stripped.startswith(("[CMD]", "> [CMD]")):
+        if stripped == "Script execution completed" or "SCRIPT EXECUTION COMPLETED" in upper:
+            fmt.setForeground(QColor("#38bdf8"))  # Cyan (matching DNA-Android completion)
+            fmt.setFontWeight(QFont.Weight.Bold.value)
+        elif stripped.startswith(("[CMD]", "> [CMD]")):
             fmt.setForeground(QColor("#38bdf8"))  # Cyan / neon blue
             fmt.setFontWeight(QFont.Weight.Bold.value)
         elif stripped.startswith("=== Starting Task"):
             fmt.setForeground(QColor("#60a5fa"))  # Bright Sky Blue
             fmt.setFontWeight(QFont.Weight.Bold.value)
         elif (
-            stripped.startswith("=== Task Finished")
+            stripped.startswith(("[✓]", "=== Task Finished"))
             or "COMPLETED SUCCESSFULLY" in upper
-            or "SCRIPT EXECUTION COMPLETED" in upper
             or "DECOMPRESSION COMPLETED" in upper
             or "EXTRACTION COMPLETED" in upper
             or "REPACK PARTITION COMPLETED" in upper
             or "REPACK COMPLETED" in upper
             or "SUCCESSFULLY EXTRACTED" in upper
+            or "DEBLOATING COMPLETE" in upper
         ):
             fmt.setForeground(QColor("#4ade80"))  # Emerald Green
             fmt.setFontWeight(QFont.Weight.Bold.value)
         elif (
-            stripped.startswith("=== Task Error")
-            or stripped.startswith("[ERROR]")
+            stripped.startswith(("Error:", "error:", "find:", "stat:", "can't create", "touch:", "[Error]", "[ERROR]"))
+            or stripped.startswith("=== Task Error")
+            or "NOT FOUND" in upper
+            or "NO SUCH FILE OR DIRECTORY" in upper
+            or "CAN'T CREATE" in upper
+            or "CANNOT CREATE" in upper
+            or "BAD DATE" in upper
             or "TRACEBACK (MOST RECENT CALL LAST)" in upper
             or "ERROR:" in upper
             or "CALLEDPROCESSERROR" in upper
@@ -155,22 +163,25 @@ class ConsoleWidget(QWidget):
             fmt.setForeground(QColor("#f87171"))  # Soft Red
             fmt.setFontWeight(QFont.Weight.Bold.value)
         elif (
-            stripped.startswith("[WARNING]")
+            stripped.startswith(("[!]", "[WARNING]", "Warning:"))
             or "WARNING:" in upper
         ):
             fmt.setForeground(QColor("#fbbf24"))  # Amber
             fmt.setFontWeight(QFont.Weight.Bold.value)
+        elif any(c in line for c in ("|", "_", "\\", "/")) and (line.startswith(" ") or line.startswith("|") or line.startswith("/") or "_" in line):
+            # ASCII Banner art
+            fmt.setForeground(QColor("#64748b"))  # Subtle Slate
         elif stripped.startswith("•") or stripped.startswith("  •"):
             fmt.setForeground(QColor("#93c5fd"))  # Soft Blue bullet
         elif stripped.startswith(">"):
             fmt.setForeground(QColor("#e2e8f0"))  # Crisp light gray
         else:
-            fmt.setForeground(QColor("#94a3b8"))  # Slate gray for sub-tool output
+            fmt.setForeground(QColor("#cbd5e1"))  # Default readable terminal text
 
         return fmt
 
     def append_log(self, text: str) -> None:
-        """Append log line with syntax coloring and auto-scroll to the end."""
+        """Append log lines preserving formatting and indentation with auto-scroll."""
         if not text:
             return
 
@@ -187,20 +198,7 @@ class ConsoleWidget(QWidget):
                     cursor.insertBlock()
                 continue
 
-            # Format like the original DNA-Android output
-            if line.startswith("   ") or line.startswith("  ") or line.startswith("\t"):
-                formatted = line
-            elif (
-                line_stripped.startswith(">")
-                or line_stripped.startswith("[")
-                or line_stripped.startswith("===")
-                or line_stripped.startswith("•")
-                or "Script execution" in line_stripped
-            ):
-                formatted = line_stripped
-            else:
-                formatted = f"> {line_stripped}"
-
+            formatted = line
             fmt = self._get_format_for_line(formatted)
 
             if self.text_edit.document().isEmpty():
