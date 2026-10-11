@@ -68,6 +68,41 @@ class TestProject(unittest.TestCase):
             self.assertEqual(len(projects_after), 1)
             self.assertEqual(projects_after[0][0].name, "proj2")
 
+    def test_create_and_delete_split_project(self):
+        with tempfile.TemporaryDirectory() as tmp_io, tempfile.TemporaryDirectory() as tmp_work:
+            io_root = Path(tmp_io)
+            work_root = Path(tmp_work)
+
+            project = create_project(
+                name="split_test",
+                io_root=io_root,
+                work_root=work_root,
+                description="Split test",
+                set_active=False,
+            )
+
+            self.assertEqual(project.name, "split_test")
+            io_dir = io_root / "DNA_split_test"
+            work_dir = work_root / "DNA_split_test"
+
+            self.assertTrue(io_dir.is_dir())
+            self.assertTrue((io_dir / "out").is_dir())
+            self.assertTrue(work_dir.is_dir())
+            self.assertTrue((work_dir / "config").is_dir())
+            self.assertTrue((work_dir / "project.toml").is_file())
+            self.assertTrue((io_dir / "project.toml").is_file())
+
+            # Resolve project
+            resolved = resolve_project("split_test", io_root=io_root, work_root=work_root)
+            self.assertEqual(resolved.name, "split_test")
+            self.assertEqual(resolved.paths.io_dir, io_dir)
+            self.assertEqual(resolved.paths.work_dir, work_dir)
+
+            # Delete project should remove both io_dir and work_dir
+            del_dir = delete_project("split_test", io_root=io_root, work_root=work_root)
+            self.assertFalse(io_dir.exists())
+            self.assertFalse(work_dir.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,19 +7,33 @@ import tomllib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from dna_core.paths import get_default_workspace_root, get_global_config_dir
+from dna_core.paths import (
+    get_default_io_root,
+    get_default_work_root,
+    get_default_workspace_root,
+    get_global_config_dir,
+)
 
 
 @dataclass
 class GlobalConfig:
     """Global configuration settings for DNA-Linux."""
 
-    workspace_root: str = field(default_factory=lambda: str(get_default_workspace_root()))
+    workspace_root: str = field(default_factory=lambda: str(get_default_io_root()))
+    io_root: str = field(default_factory=lambda: str(get_default_io_root()))
+    work_root: str = field(default_factory=lambda: str(get_default_work_root()))
     active_project: str | None = None
     auto_confirm: bool = False
     verbose: bool = False
     background_image: str | None = None
     tool_overrides: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        default_io = str(get_default_io_root())
+        if self.workspace_root != default_io and self.io_root == default_io:
+            self.io_root = self.workspace_root
+        elif self.io_root != default_io and self.workspace_root == default_io:
+            self.workspace_root = self.io_root
 
     @classmethod
     def load(cls, config_path: Path | None = None) -> GlobalConfig:
@@ -31,8 +45,14 @@ class GlobalConfig:
         try:
             with open(path, "rb") as f:
                 data = tomllib.load(f)
+            ws_val = data.get("workspace_root")
+            io_val = data.get("io_root")
+            chosen_io = io_val or ws_val or str(get_default_io_root())
+            chosen_work = data.get("work_root", str(get_default_work_root()))
             return cls(
-                workspace_root=data.get("workspace_root", str(get_default_workspace_root())),
+                workspace_root=ws_val or chosen_io,
+                io_root=chosen_io,
+                work_root=chosen_work,
                 active_project=data.get("active_project"),
                 auto_confirm=data.get("auto_confirm", False),
                 verbose=data.get("verbose", False),
@@ -49,6 +69,8 @@ class GlobalConfig:
 
         lines = [
             "# DNA-Linux Global Configuration",
+            f'io_root = "{self.io_root}"',
+            f'work_root = "{self.work_root}"',
             f'workspace_root = "{self.workspace_root}"',
         ]
         if self.active_project:
@@ -97,14 +119,14 @@ def get_active_project_path(config: GlobalConfig | None = None) -> Path | None:
     if candidate.is_absolute() and candidate.is_dir():
         return candidate.resolve()
 
-    ws_root = Path(cfg.workspace_root).expanduser()
-    direct_match = ws_root / cfg.active_project
-    if direct_match.is_dir():
-        return direct_match.resolve()
-
-    prefixed_match = ws_root / f"DNA_{cfg.active_project}"
-    if prefixed_match.is_dir():
-        return prefixed_match.resolve()
+    for root_str in (cfg.io_root, cfg.workspace_root, cfg.work_root):
+        r = Path(root_str).expanduser()
+        direct = r / cfg.active_project
+        if direct.is_dir():
+            return direct.resolve()
+        prefixed = r / f"DNA_{cfg.active_project}"
+        if prefixed.is_dir():
+            return prefixed.resolve()
 
     return None
 
@@ -120,4 +142,3 @@ def set_active_project_name(name: str | None, config_path: Path | None = None) -
     cfg = GlobalConfig.load(config_path)
     cfg.active_project = name
     cfg.save(config_path)
-

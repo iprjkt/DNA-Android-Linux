@@ -378,7 +378,7 @@ class SelectProjectDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        header_lbl = QLabel("Projects in ~/DNA")
+        header_lbl = QLabel("DNA Project Workspaces")
         header_font = QFont()
         header_font.setPointSize(12)
         header_font.setBold(True)
@@ -496,7 +496,7 @@ class DeleteProjectDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        header_lbl = QLabel("Select project in ~/DNA to delete:")
+        header_lbl = QLabel("Select project to delete:")
         header_font = QFont()
         header_font.setPointSize(12)
         header_font.setBold(True)
@@ -550,7 +550,7 @@ class DeleteProjectDialog(QDialog):
         p_name = curr.data(Qt.ItemDataRole.UserRole)
         confirm = ConfirmDialog(
             "Delete Project",
-            f"Are you sure you want to permanently delete project '{p_name}' and all its files from ~/DNA?",
+            f"Are you sure you want to permanently delete project '{p_name}' and all its files?",
             confirm_text="Delete Permanently",
             is_danger=True,
             parent=self,
@@ -680,17 +680,38 @@ def get_repack_partition_candidates(proj: ProjectPaths | None, mode: str = "all"
         return []
     candidates: list[Path] = []
     seen: set[Path] = set()
+    EXCLUDED_DIRS = {
+        "config",
+        "out",
+        "logs",
+        "plugins",
+        "lost+found",
+        ".git",
+        "__pycache__",
+        "unpacked",
+        "images",
+        "rom",
+    }
 
-    # 1. Unpacked partition directories under ~/DNA/<project>/unpacked/
-    if mode in ("all", "folder") and proj.unpacked.is_dir():
-        for d in sorted(proj.unpacked.iterdir()):
-            if d.is_dir() and not d.name.startswith("."):
+    # 1. Unpacked partition directories directly under work_dir (e.g. /data/DNA/<proj>/product/)
+    if mode in ("all", "folder") and proj.work_dir.is_dir():
+        for d in sorted(proj.work_dir.iterdir()):
+            if d.is_dir() and not d.name.startswith(".") and d.name.lower() not in EXCLUDED_DIRS:
                 resolved = d.resolve()
                 if resolved not in seen:
                     candidates.append(d)
                     seen.add(resolved)
 
-    # 2. Partition image files under ~/DNA/<project>/images/ (excluding super.img)
+    # 2. Partition directories under legacy unpacked folder (e.g. <work_dir>/unpacked/<part>/)
+    if mode in ("all", "folder") and (proj.work_dir / "unpacked").is_dir():
+        for d in sorted((proj.work_dir / "unpacked").iterdir()):
+            if d.is_dir() and not d.name.startswith(".") and d.name.lower() not in EXCLUDED_DIRS:
+                resolved = d.resolve()
+                if resolved not in seen:
+                    candidates.append(d)
+                    seen.add(resolved)
+
+    # 3. Partition image files under images_dir (excluding super.img)
     if mode in ("all", "img") and proj.images.is_dir():
         for f in sorted(proj.images.glob("*.img")):
             if f.name.lower() != "super.img" and not f.name.startswith("."):
@@ -699,9 +720,9 @@ def get_repack_partition_candidates(proj: ProjectPaths | None, mode: str = "all"
                     candidates.append(f)
                     seen.add(resolved)
 
-    # 3. Partition image files directly under project root ~/DNA/<project>/ (excluding super.img)
-    if mode in ("all", "img") and proj.project_dir.is_dir():
-        for f in sorted(proj.project_dir.glob("*.img")):
+    # 4. Partition image files directly under io_dir (excluding super.img)
+    if mode in ("all", "img") and proj.io_dir.is_dir():
+        for f in sorted(proj.io_dir.glob("*.img")):
             if f.name.lower() != "super.img" and not f.name.startswith("."):
                 resolved = f.resolve()
                 if resolved not in seen:
@@ -1486,7 +1507,7 @@ class UnpackImgDialog(BaseOperationDialog):
             ]
         self.file_picker = FileSelectField(
             candidate_files=img_candidates,
-            subtitle="Select partition img files under ~/DNA project path",
+            subtitle="Select partition img files under project path",
             dialog_title="Select Partition Images to Unpack",
         )
         self.form_layout.addWidget(self.file_picker)
@@ -1801,7 +1822,7 @@ class RepackSuperDialog(BaseOperationDialog):
 
         self.file_picker = FileSelectField(
             candidate_files=candidates,
-            subtitle="Detects files from ~/DNA project path",
+            subtitle="Detects files from project path",
             dialog_title="Select Partition Images for Super Image",
         )
         self.form_layout.addWidget(self.file_picker)
@@ -1835,7 +1856,13 @@ class ImgSimgDialog(BaseOperationDialog):
         self.add_section_header("Select IMG files to convert:")
         candidates = []
         if proj:
-            candidates = list(proj.images.glob("*.img"))
+            raw_cands = list(proj.images.glob("*.img")) + list(proj.io_dir.glob("*.img"))
+            seen = set()
+            for f in raw_cands:
+                res = f.resolve()
+                if res not in seen:
+                    seen.add(res)
+                    candidates.append(f)
         self.file_picker = FileSelectField(
             candidate_files=candidates,
             subtitle="Convert between raw img and sparse simg automatically",

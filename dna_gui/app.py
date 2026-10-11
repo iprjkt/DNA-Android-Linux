@@ -245,9 +245,10 @@ class MainWindow(QMainWindow):
             self._refresh_active_project_state()
 
     def _open_project_creator(self) -> None:
+        cfg = GlobalConfig.load()
         dlg = InputDialog(
             "Create New Project",
-            "Enter new project name (e.g. 'myrom' or 'hyperos'):\nProject will be created under ~/DNA",
+            f"Enter new project name (e.g. 'myrom' or 'hyperos'):\nIO: {cfg.io_root}\nWork: {cfg.work_root}",
             placeholder="my_project",
             parent=self,
         )
@@ -260,7 +261,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.information(
                         self,
                         "Project Created",
-                        f"Created and activated project '{proj.name}' in ~/DNA!",
+                        f"Created and activated project '{proj.name}'!\nIO: {proj.paths.io_dir}\nWork: {proj.paths.work_dir}",
                     )
                 except Exception as exc:
                     QMessageBox.critical(self, "Creation Error", str(exc))
@@ -543,9 +544,13 @@ class MainWindow(QMainWindow):
             if not selected:
                 first_name = params.get("partition")
                 if first_name:
-                    cand_path = proj.unpacked / first_name
+                    cand_path = proj.work_dir / first_name
+                    if not cand_path.is_dir():
+                        cand_path = proj.unpacked / first_name
                     if not cand_path.is_dir():
                         cand_path = proj.images / f"{first_name}.img"
+                    if not cand_path.exists():
+                        cand_path = proj.io_dir / f"{first_name}.img"
                     if cand_path.exists():
                         selected = [cand_path]
             if not selected:
@@ -587,7 +592,7 @@ class MainWindow(QMainWindow):
                         except Exception:
                             pass
 
-                    out_img = proj.images / f"{part_name}.img"
+                    out_img = proj.out / f"{part_name}.img"
                     repack_image(
                         in_dir,
                         out_img=out_img,
