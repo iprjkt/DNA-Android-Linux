@@ -449,10 +449,20 @@ class TestDnaGui(unittest.TestCase):
             self.assertEqual(len(dlg.all_files), 2)
             self.assertEqual(dlg.get_selected_files(), [f1, f2])
 
-            # Duplicate add is idempotent
             dlg._add_custom_path(f1)
             self.assertEqual(len(dlg.all_files), 2)
+
+    def test_open_project_creator(self) -> None:
+        """Verify _open_project_creator executes without NameError on GlobalConfig."""
+        from unittest.mock import patch
+        from dna_gui.widgets.dialogs import InputDialog
+
+        win = MainWindow()
+        with patch.object(InputDialog, "exec", return_value=InputDialog.DialogCode.Rejected):
+            win._open_project_creator()
+        win.close()
 
 
 if __name__ == "__main__":
     unittest.main()
+

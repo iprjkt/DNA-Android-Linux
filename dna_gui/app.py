@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dna_core.config import get_background_image, set_background_image
+from dna_core.config import GlobalConfig, get_background_image, set_background_image
 from dna_core.debloat import debloat_rom
 from dna_core.jar import (
     patch_core_patch_dsv,
