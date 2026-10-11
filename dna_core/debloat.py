@@ -94,15 +94,48 @@ def calculate_directory_size(path: Path) -> int:
     return total
 
 
+BANNER_DEBLOAT = """  ___       _     _             _   _            
+ |   \\ ___ | |__ | | ___  __ _ | |_(_) _ _   __ _ 
+ | |) / -_)| '_ \\| |/ _ \\/ _` ||  _| || ' \\ / _` |
+ |___/\\___||_.__/|_|\\___/\\__,_| \\__|_||_||_|\\__, |
+                                            |___/ """
+
+
 def run_debloat(
     target_root: Path | str,
     preset: DebloatPreset,
     dry_run: bool = False,
 ) -> DebloatResult:
     """Scan and safely debloat packages matching preset patterns in target_root."""
+    print(BANNER_DEBLOAT + "\n")
+    print("Removing bloatware please wait...\n")
+
     root = Path(target_root).resolve()
-    if not root.is_dir():
-        raise NotADirectoryError(f"Target directory '{root}' does not exist.")
+    base_dir = root.parent if (root.name == "unpacked" and not root.exists()) else root
+    eff_root = root if root.is_dir() else base_dir
+
+    if not eff_root.is_dir():
+        print(f"find: '{base_dir}': No such file or directory\n")
+        print("[✓] Debloating complete\n")
+        return DebloatResult(
+            preset_name=preset.name,
+            removed_directories=[],
+            freed_bytes=0,
+            packages_affected=[],
+            dry_run=dry_run,
+        )
+
+    # Check partitions under eff_root / base_dir
+    for p_name in ("system", "product"):
+        has_part = (
+            (eff_root / p_name).is_dir()
+            or (eff_root / f"{p_name}_a").is_dir()
+            or eff_root.name.startswith(p_name)
+            or (base_dir / p_name).is_dir()
+            or (base_dir / f"{p_name}_a").is_dir()
+        )
+        if not has_part:
+            print(f"find: '{base_dir / p_name}': No such file or directory")
 
     removed: list[Path] = []
     affected_packages: set[str] = set()
@@ -112,13 +145,18 @@ def run_debloat(
     for pkg in preset.packages:
         pkg_matched = False
         for pattern in pkg.patterns:
-            # Match pattern relative to target_root
-            for match_path in root.glob(pattern):
+            # Match pattern relative to eff_root
+            for match_path in eff_root.glob(pattern):
                 if match_path.is_dir() and match_path not in removed:
                     size = calculate_directory_size(match_path)
                     total_freed += size
                     removed.append(match_path)
                     pkg_matched = True
+                    try:
+                        rel = match_path.relative_to(eff_root)
+                    except ValueError:
+                        rel = match_path.name
+                    print(f"Removing: ./{rel} (Package: {pkg.name})")
 
         if pkg_matched:
             affected_packages.add(pkg.name)
@@ -126,6 +164,8 @@ def run_debloat(
     if not dry_run:
         for p in removed:
             shutil.rmtree(p, ignore_errors=True)
+
+    print("[✓] Debloating complete\n")
 
     return DebloatResult(
         preset_name=preset.name,

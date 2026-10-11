@@ -301,8 +301,8 @@ class MainWindow(QMainWindow):
             )
             return
 
+        self.console.clear_logs()
         self.console.set_status(task_name, running=True)
-        self.console.append_log(f"> Task started: {task_name}")
 
         self.worker = WorkerThread(task_name, target, *args, **kwargs)
         self.worker.log_signal.connect(self.console.append_log)

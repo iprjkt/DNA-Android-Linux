@@ -35,6 +35,13 @@ class Project:
     def directory(self) -> Path:
         return self.paths.project_dir
 
+    @property
+    def unpacked(self) -> Path:
+        return self.paths.unpacked_dir
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.paths, name)
+
     def load_metadata(self) -> dict[str, Any]:
         """Read project.toml metadata from work_dir or io_dir."""
         target_file = self.paths.project_file
