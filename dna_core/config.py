@@ -142,3 +142,40 @@ def set_active_project_name(name: str | None, config_path: Path | None = None) -
     cfg = GlobalConfig.load(config_path)
     cfg.active_project = name
     cfg.save(config_path)
+
+
+def get_workspace_roots(config: GlobalConfig | None = None) -> tuple[Path, Path]:
+    """Return configured (io_root, work_root) as resolved Path objects."""
+    cfg = config or GlobalConfig.load()
+    return Path(cfg.io_root).expanduser().resolve(), Path(cfg.work_root).expanduser().resolve()
+
+
+def set_workspace_roots(
+    io_root: str | Path | None = None,
+    work_root: str | Path | None = None,
+    config_path: Path | None = None,
+) -> GlobalConfig:
+    """Update and persist custom IO root and/or work root paths."""
+    cfg = GlobalConfig.load(config_path)
+    if io_root is not None:
+        p_io = Path(io_root).expanduser().resolve()
+        p_io.mkdir(parents=True, exist_ok=True)
+        cfg.io_root = str(p_io)
+        cfg.workspace_root = cfg.io_root
+    if work_root is not None:
+        p_work = Path(work_root).expanduser().resolve()
+        p_work.mkdir(parents=True, exist_ok=True)
+        cfg.work_root = str(p_work)
+    cfg.save(config_path)
+    return cfg
+
+
+def reset_workspace_roots(config_path: Path | None = None) -> GlobalConfig:
+    """Reset IO and Work roots back to system defaults."""
+    cfg = GlobalConfig.load(config_path)
+    cfg.io_root = str(get_default_io_root())
+    cfg.work_root = str(get_default_work_root())
+    cfg.workspace_root = cfg.io_root
+    cfg.save(config_path)
+    return cfg
+

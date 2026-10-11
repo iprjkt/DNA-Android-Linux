@@ -453,14 +453,55 @@ class TestDnaGui(unittest.TestCase):
             self.assertEqual(len(dlg.all_files), 2)
 
     def test_open_project_creator(self) -> None:
-        """Verify _open_project_creator executes without NameError on GlobalConfig."""
+        """Verify _open_project_creator executes with CreateProjectDialog."""
         from unittest.mock import patch
-        from dna_gui.widgets.dialogs import InputDialog
+        from dna_gui.widgets.dialogs import CreateProjectDialog
+        from PyQt6.QtWidgets import QDialog
 
         win = MainWindow()
-        with patch.object(InputDialog, "exec", return_value=InputDialog.DialogCode.Rejected):
+        with patch.object(CreateProjectDialog, "exec", return_value=QDialog.DialogCode.Rejected):
             win._open_project_creator()
         win.close()
+
+    def test_create_project_dialog_custom_directories(self) -> None:
+        """Verify CreateProjectDialog accepts custom IO and Work directories."""
+        from dna_gui.widgets.dialogs import CreateProjectDialog
+
+        dlg = CreateProjectDialog()
+        dlg.edit_name.setText("custom_test")
+        dlg.edit_io.setText("/tmp/custom_io")
+        dlg.edit_work.setText("/tmp/custom_work")
+        dlg.edit_desc.setText("Custom note")
+        dlg.chk_save_defaults.setChecked(True)
+
+        name, io_p, work_p, desc, save_def = dlg.get_values()
+        self.assertEqual(name, "custom_test")
+        self.assertEqual(io_p, Path("/tmp/custom_io").resolve())
+        self.assertEqual(work_p, Path("/tmp/custom_work").resolve())
+        self.assertEqual(desc, "Custom note")
+        self.assertTrue(save_def)
+        dlg.close()
+
+    def test_select_project_dialog_roots_management(self) -> None:
+        """Verify SelectProjectDialog displays and updates custom workspace roots."""
+        from dna_gui.widgets.dialogs import SelectProjectDialog
+        from dna_core.config import set_workspace_roots, reset_workspace_roots
+        from dna_core.paths import get_default_io_root, get_default_work_root
+
+        with TemporaryDirectory() as tmpdir:
+            custom_io = Path(tmpdir) / "custom_io"
+            custom_work = Path(tmpdir) / "custom_work"
+            set_workspace_roots(io_root=custom_io, work_root=custom_work)
+
+            dlg = SelectProjectDialog()
+            self.assertEqual(dlg.lbl_io_path.text(), str(custom_io.resolve()))
+            self.assertEqual(dlg.lbl_work_path.text(), str(custom_work.resolve()))
+
+            # Reset roots
+            dlg._reset_roots()
+            self.assertEqual(dlg.lbl_io_path.text(), str(get_default_io_root()))
+            self.assertEqual(dlg.lbl_work_path.text(), str(get_default_work_root()))
+            dlg.close()
 
 
 if __name__ == "__main__":

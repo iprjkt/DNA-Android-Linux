@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import click
 from rich.console import Console
 from rich.table import Table
@@ -22,18 +23,41 @@ def project_group() -> None:
 @project_group.command(name="create", help="Create a new project workspace.")
 @click.argument("name")
 @click.option("--desc", default="", help="Optional project description.")
+@click.option("--io-root", type=click.Path(path_type=Path), default=None, help="Custom input/output directory root (e.g. /mnt/detalmick).")
+@click.option("--work-root", type=click.Path(path_type=Path), default=None, help="Custom working directory root (e.g. /mnt/detalmick/work).")
+@click.option("--root", type=click.Path(path_type=Path), default=None, help="Custom root directory for both IO and work directories.")
 @click.option("-n", "--dry-run", is_flag=True, default=False, help="Simulate execution without creating directory.")
 @click.pass_obj
-def create_cmd(ctx_obj, name: str, desc: str, dry_run: bool) -> None:
+def create_cmd(
+    ctx_obj,
+    name: str,
+    desc: str,
+    io_root: Path | None,
+    work_root: Path | None,
+    root: Path | None,
+    dry_run: bool,
+) -> None:
     console: Console = ctx_obj["console"]
     is_dry_run = dry_run or ctx_obj.get("dry_run", False)
 
+    eff_io = io_root or root
+    eff_work = work_root or root
+
     if is_dry_run:
         console.print(f"[yellow][DRY-RUN][/yellow] Would create project '[bold]{name}[/bold]'")
+        if eff_io:
+            console.print(f"  Target IO: [dim]{eff_io}[/dim]")
+        if eff_work:
+            console.print(f"  Target Work: [dim]{eff_work}[/dim]")
         return
 
     try:
-        project = create_project(name=name, description=desc)
+        project = create_project(
+            name=name,
+            description=desc,
+            io_root=eff_io,
+            work_root=eff_work,
+        )
         console.print(f"[bold green]✓ Successfully created project:[/bold green] [bold cyan]{project.name}[/bold cyan]")
         console.print(f"  IO Directory:   [dim]{project.paths.io_dir}[/dim]")
         console.print(f"  Work Directory: [dim]{project.paths.work_dir}[/dim]")
@@ -41,6 +65,32 @@ def create_cmd(ctx_obj, name: str, desc: str, dry_run: bool) -> None:
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise click.Abort()
+
+
+@project_group.command(name="roots", help="View or update default workspace root directories.")
+@click.option("--set-io", type=click.Path(path_type=Path), default=None, help="Set default input/output directory.")
+@click.option("--set-work", type=click.Path(path_type=Path), default=None, help="Set default working directory.")
+@click.option("--reset", is_flag=True, default=False, help="Reset directories to system defaults.")
+@click.pass_obj
+def roots_cmd(ctx_obj, set_io: Path | None, set_work: Path | None, reset: bool) -> None:
+    console: Console = ctx_obj["console"]
+    from dna_core.config import get_workspace_roots, reset_workspace_roots, set_workspace_roots
+
+    if reset:
+        cfg = reset_workspace_roots()
+        console.print("[bold green]✓ Reset workspace roots to system defaults.[/bold green]")
+    elif set_io is not None or set_work is not None:
+        cfg = set_workspace_roots(io_root=set_io, work_root=set_work)
+        console.print("[bold green]✓ Updated workspace roots:[/bold green]")
+    else:
+        io_r, work_r = get_workspace_roots()
+        console.print("[bold cyan]Current Workspace Roots:[/bold cyan]")
+        console.print(f"  IO Root:   [dim]{io_r}[/dim]")
+        console.print(f"  Work Root: [dim]{work_r}[/dim]")
+        return
+
+    console.print(f"  IO Root:   [dim]{cfg.io_root}[/dim]")
+    console.print(f"  Work Root: [dim]{cfg.work_root}[/dim]")
 
 
 @project_group.command(name="select", help="Select active project workspace.")

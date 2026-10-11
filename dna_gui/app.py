@@ -21,7 +21,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dna_core.config import GlobalConfig, get_background_image, set_background_image
+from dna_core.config import (
+    GlobalConfig,
+    get_background_image,
+    set_background_image,
+    set_workspace_roots,
+)
 from dna_core.debloat import debloat_rom
 from dna_core.jar import (
     patch_core_patch_dsv,
@@ -67,6 +72,7 @@ from dna_gui.widgets.dialogs import (
     AboutDialog,
     ConfirmDialog,
     CorePatchDsvDialog,
+    CreateProjectDialog,
     DebloatRomDialog,
     DeleteProjectDialog,
     DisableSecureScreenshotDialog,
@@ -245,26 +251,21 @@ class MainWindow(QMainWindow):
             self._refresh_active_project_state()
 
     def _open_project_creator(self) -> None:
-        cfg = GlobalConfig.load()
-        dlg = InputDialog(
-            "Create New Project",
-            f"Enter new project name (e.g. 'myrom' or 'hyperos'):\nIO: {cfg.io_root}\nWork: {cfg.work_root}",
-            placeholder="my_project",
-            parent=self,
-        )
-        if dlg.exec() == InputDialog.DialogCode.Accepted:
-            val = dlg.get_value()
-            if val:
-                try:
-                    proj = create_project(val)
-                    self._refresh_active_project_state()
-                    QMessageBox.information(
-                        self,
-                        "Project Created",
-                        f"Created and activated project '{proj.name}'!\nIO: {proj.paths.io_dir}\nWork: {proj.paths.work_dir}",
-                    )
-                except Exception as exc:
-                    QMessageBox.critical(self, "Creation Error", str(exc))
+        dlg = CreateProjectDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            name, io_root, work_root, desc, save_default = dlg.get_values()
+            if save_default:
+                set_workspace_roots(io_root=io_root, work_root=work_root)
+            try:
+                proj = create_project(name, io_root=io_root, work_root=work_root, description=desc)
+                self._refresh_active_project_state()
+                QMessageBox.information(
+                    self,
+                    "Project Created",
+                    f"Created and activated project '{proj.name}'!\nIO: {proj.paths.io_dir}\nWork: {proj.paths.work_dir}",
+                )
+            except Exception as exc:
+                QMessageBox.critical(self, "Creation Error", str(exc))
 
     def _open_project_deleter(self) -> None:
         dlg = DeleteProjectDialog(self)
