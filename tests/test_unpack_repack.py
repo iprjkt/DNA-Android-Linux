@@ -7,7 +7,7 @@ from pathlib import Path
 from dna_core.project import create_project
 from dna_core.repack import repack_image, repack_super, repack_zstd
 from dna_core.resize import resize_partition
-from dna_core.unpack import unpack_image, unpack_super, unpack_zstd
+from dna_core.unpack import _create_temp_raw_file, unpack_image, unpack_super, unpack_zstd
 
 
 class TestUnpackRepack(unittest.TestCase):
@@ -89,6 +89,54 @@ class TestUnpackRepack(unittest.TestCase):
             extracted_names = [e.name for e in extracted]
             self.assertIn("system.img", extracted_names)
             self.assertIn("vendor.img", extracted_names)
+
+    def test_create_temp_raw_file_prefers_destination(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            td = Path(tmpdir)
+            custom_dir = td / "custom_work"
+            custom_dir.mkdir()
+            dummy_src = td / "dummy.img"
+            dummy_src.touch()
+
+            tmp_raw = _create_temp_raw_file(dummy_src, preferred_dir=custom_dir)
+            try:
+                self.assertTrue(tmp_raw.is_file())
+                self.assertEqual(tmp_raw.parent.resolve(), custom_dir.resolve())
+            finally:
+                if tmp_raw.exists():
+                    tmp_raw.unlink()
+
+    def test_super_sparse_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            td = Path(tmpdir)
+            sys_img = td / "system.img"
+            sys_img.write_bytes(b"\x00" * (4 * 1024 * 1024))
+            ven_img = td / "vendor.img"
+            ven_img.write_bytes(b"\x00" * (4 * 1024 * 1024))
+
+            super_img = td / "super.img"
+            unpack_dir = td / "super_out"
+
+            # 1. Repack sparse super.img
+            repack_super(
+                partition_images=[sys_img, ven_img],
+                out_super=super_img,
+                device_size=32 * 1024 * 1024,
+                group_name="dyn_part",
+                slot_type="a_only",
+                sparse=True,
+            )
+            self.assertTrue(super_img.is_file())
+
+            # 2. Unpack sparse super.img into unpack_dir
+            extracted = unpack_super(super_img, out_dir=unpack_dir)
+            extracted_names = [e.name for e in extracted]
+            self.assertIn("system.img", extracted_names)
+            self.assertIn("vendor.img", extracted_names)
+            self.assertNotIn("super.img", extracted_names)
+            # Ensure no lingering temp raw files left behind
+            lingering = list(unpack_dir.glob(".tmp_raw_*")) + list(td.glob(".tmp_raw_*"))
+            self.assertEqual(lingering, [])
 
     def test_zstd_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmpdir:
