@@ -5,6 +5,7 @@ from dna_gui.widgets.console import ConsoleWidget
 from dna_gui.widgets.dialogs import (
     AboutDialog,
     ConfirmDialog,
+    CreateProjectDialog,
     DeleteProjectDialog,
     DoctorDialog,
     InputDialog,
@@ -17,6 +18,7 @@ __all__ = [
     "ConsoleWidget",
     "HeaderWidget",
     "SelectProjectDialog",
+    "CreateProjectDialog",
     "DeleteProjectDialog",
     "DoctorDialog",
     "ConfirmDialog",

@@ -31,7 +31,15 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dna_core.config import get_background_image, set_background_image
+from dna_core.config import (
+    GlobalConfig,
+    get_background_image,
+    get_workspace_roots,
+    reset_workspace_roots,
+    set_background_image,
+    set_workspace_roots,
+)
+from dna_core.paths import get_default_io_root, get_default_work_root
 from dna_core.project import (
     ProjectPaths,
     create_project,
@@ -363,33 +371,239 @@ class InputDialog(QDialog):
         return self.input_edit.text().strip()
 
 
-class SelectProjectDialog(QDialog):
-    """Modal for selecting, creating, or deleting project workspaces."""
+class CreateProjectDialog(QDialog):
+    """Custom project creation dialog allowing user-specified custom IO and Work directories."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Select Project")
-        self.setFixedSize(500, 420)
+        self.setWindowTitle("Create New Project")
+        self.setFixedSize(540, 420)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setStyleSheet(
+            "QDialog { background-color: #14161f; border: 1px solid #282a35; border-radius: 14px; }"
+            "QLabel { color: #cbd5e1; font-size: 11px; font-weight: 500; background: transparent; }"
+            "QLineEdit {"
+            "   background-color: #0f1117; color: #ffffff; border: 1px solid #282a35;"
+            "   border-radius: 8px; padding: 7px 12px; font-size: 12px;"
+            "}"
+            "QLineEdit:focus { border: 1px solid #3b82f6; }"
+            "QPushButton {"
+            "   background-color: #1e293b; color: #e2e8f0; border: 1px solid #334155;"
+            "   border-radius: 8px; padding: 7px 14px; font-size: 11px; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background-color: #334155; }"
+            "QPushButton#btn_primary {"
+            "   background-color: #2563eb; border: 1px solid #3b82f6; color: #ffffff;"
+            "}"
+            "QPushButton#btn_primary:hover { background-color: #1d4ed8; }"
+            "QCheckBox { color: #94a3b8; font-size: 11px; }"
+        )
 
-        self.selected_project_name: str | None = None
+        cfg = GlobalConfig.load()
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(10)
 
-        header_lbl = QLabel("DNA Project Workspaces")
+        header_lbl = QLabel("Create New Project Workspace")
         header_font = QFont()
-        header_font.setPointSize(12)
+        header_font.setPointSize(13)
         header_font.setBold(True)
         header_lbl.setFont(header_font)
         header_lbl.setStyleSheet("color: #ffffff;")
         layout.addWidget(header_lbl)
 
+        # 1. Project name
+        name_lbl = QLabel("Project Name:")
+        layout.addWidget(name_lbl)
+        self.edit_name = QLineEdit()
+        self.edit_name.setPlaceholderText("e.g. myrom, hyperos, pixel7")
+        layout.addWidget(self.edit_name)
+
+        # 2. IO Root
+        io_lbl = QLabel("Input / Output Directory (ROM archives, images, out/ directory):")
+        layout.addWidget(io_lbl)
+        io_layout = QHBoxLayout()
+        io_layout.setSpacing(8)
+        self.edit_io = QLineEdit(cfg.io_root)
+        io_layout.addWidget(self.edit_io, stretch=1)
+        self.btn_browse_io = QPushButton("Browse...")
+        self.btn_browse_io.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_browse_io.clicked.connect(self._browse_io)
+        io_layout.addWidget(self.btn_browse_io)
+        layout.addLayout(io_layout)
+
+        # 3. Work Root
+        work_lbl = QLabel("Working Directory (Extracted partitions, config/, logs/):")
+        layout.addWidget(work_lbl)
+        work_layout = QHBoxLayout()
+        work_layout.setSpacing(8)
+        self.edit_work = QLineEdit(cfg.work_root)
+        work_layout.addWidget(self.edit_work, stretch=1)
+        self.btn_browse_work = QPushButton("Browse...")
+        self.btn_browse_work.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_browse_work.clicked.connect(self._browse_work)
+        work_layout.addWidget(self.btn_browse_work)
+        layout.addLayout(work_layout)
+
+        # 4. Description
+        desc_lbl = QLabel("Description (optional):")
+        layout.addWidget(desc_lbl)
+        self.edit_desc = QLineEdit()
+        self.edit_desc.setPlaceholderText("Optional notes or ROM info")
+        layout.addWidget(self.edit_desc)
+
+        # 5. Checkbox save defaults
+        self.chk_save_defaults = QCheckBox("Save these directories as default for future projects")
+        layout.addWidget(self.chk_save_defaults)
+
+        layout.addStretch(1)
+
+        # Buttons
+        btns_layout = QHBoxLayout()
+        btns_layout.addStretch(1)
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.clicked.connect(self.reject)
+        btns_layout.addWidget(self.btn_cancel)
+
+        self.btn_create = QPushButton("Create Project")
+        self.btn_create.setObjectName("btn_primary")
+        self.btn_create.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_create.clicked.connect(self._on_create)
+        btns_layout.addWidget(self.btn_create)
+
+        layout.addLayout(btns_layout)
+
+    def _browse_io(self) -> None:
+        curr = self.edit_io.text().strip() or str(Path.home())
+        chosen = QFileDialog.getExistingDirectory(self, "Select Input/Output Directory", curr)
+        if chosen:
+            self.edit_io.setText(chosen)
+
+    def _browse_work(self) -> None:
+        curr = self.edit_work.text().strip() or str(Path.home())
+        chosen = QFileDialog.getExistingDirectory(self, "Select Working Directory", curr)
+        if chosen:
+            self.edit_work.setText(chosen)
+
+    def _on_create(self) -> None:
+        name = self.edit_name.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Invalid Name", "Please enter a project name.")
+            return
+        self.accept()
+
+    def get_values(self) -> tuple[str, Path, Path, str, bool]:
+        name = self.edit_name.text().strip()
+        io_root = Path(self.edit_io.text().strip() or str(get_default_io_root())).expanduser().resolve()
+        work_root = Path(self.edit_work.text().strip() or str(get_default_work_root())).expanduser().resolve()
+        desc = self.edit_desc.text().strip()
+        save_default = self.chk_save_defaults.isChecked()
+        return name, io_root, work_root, desc, save_default
+
+
+class SelectProjectDialog(QDialog):
+    """Modal for selecting, creating, or deleting project workspaces and configuring workspace roots."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Select Project")
+        self.setFixedSize(560, 530)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setStyleSheet(
+            "QDialog { background-color: #14161f; border: 1px solid #282a35; border-radius: 16px; }"
+            "QLabel { color: #ffffff; background: transparent; }"
+            "QPushButton {"
+            "   background-color: #1e293b; color: #e2e8f0; border: 1px solid #334155;"
+            "   border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;"
+            "}"
+            "QPushButton:hover { background-color: #334155; }"
+            "QPushButton#btn_primary { background-color: #2563eb; border: 1px solid #3b82f6; color: #ffffff; }"
+            "QPushButton#btn_primary:hover { background-color: #1d4ed8; }"
+            "QPushButton#btn_danger { background-color: #7f1d1d; border: 1px solid #991b1b; color: #fca5a5; }"
+            "QPushButton#btn_danger:hover { background-color: #991b1b; color: #ffffff; }"
+            "QPushButton#btn_mini { padding: 4px 8px; font-size: 10px; }"
+        )
+
+        self.selected_project_name: str | None = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(10)
+
+        header_lbl = QLabel("DNA Project Workspaces")
+        header_font = QFont()
+        header_font.setPointSize(13)
+        header_font.setBold(True)
+        header_lbl.setFont(header_font)
+        layout.addWidget(header_lbl)
+
+        # Workspace Directories Card
+        roots_card = QFrame()
+        roots_card.setStyleSheet(
+            "QFrame { background-color: #10121a; border: 1px solid #232535; border-radius: 10px; padding: 4px; }"
+            "QLabel { border: none; }"
+        )
+        roots_layout = QVBoxLayout(roots_card)
+        roots_layout.setContentsMargins(10, 8, 10, 8)
+        roots_layout.setSpacing(6)
+
+        roots_title_row = QHBoxLayout()
+        roots_title_lbl = QLabel("Workspace Locations")
+        roots_title_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase;")
+        roots_title_row.addWidget(roots_title_lbl)
+        roots_title_row.addStretch(1)
+
+        self.btn_reset_roots = QPushButton("Reset Defaults")
+        self.btn_reset_roots.setObjectName("btn_mini")
+        self.btn_reset_roots.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reset_roots.clicked.connect(self._reset_roots)
+        roots_title_row.addWidget(self.btn_reset_roots)
+        roots_layout.addLayout(roots_title_row)
+
+        # IO Root row
+        io_row = QHBoxLayout()
+        io_row.setSpacing(6)
+        io_title = QLabel("IO:")
+        io_title.setStyleSheet("color: #38bdf8; font-weight: 600; font-size: 11px;")
+        io_row.addWidget(io_title)
+        self.lbl_io_path = QLabel("")
+        self.lbl_io_path.setStyleSheet("color: #cbd5e1; font-size: 11px; font-family: monospace;")
+        io_row.addWidget(self.lbl_io_path, stretch=1)
+        self.btn_change_io = QPushButton("Change...")
+        self.btn_change_io.setObjectName("btn_mini")
+        self.btn_change_io.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_change_io.clicked.connect(self._change_io_root)
+        io_row.addWidget(self.btn_change_io)
+        roots_layout.addLayout(io_row)
+
+        # Work Root row
+        work_row = QHBoxLayout()
+        work_row.setSpacing(6)
+        work_title = QLabel("Work:")
+        work_title.setStyleSheet("color: #34d399; font-weight: 600; font-size: 11px;")
+        work_row.addWidget(work_title)
+        self.lbl_work_path = QLabel("")
+        self.lbl_work_path.setStyleSheet("color: #cbd5e1; font-size: 11px; font-family: monospace;")
+        work_row.addWidget(self.lbl_work_path, stretch=1)
+        self.btn_change_work = QPushButton("Change...")
+        self.btn_change_work.setObjectName("btn_mini")
+        self.btn_change_work.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_change_work.clicked.connect(self._change_work_root)
+        work_row.addWidget(self.btn_change_work)
+        roots_layout.addLayout(work_row)
+
+        layout.addWidget(roots_card)
+
+        # Projects list header
+        list_header = QLabel("Available Projects:")
+        list_header.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 500;")
+        layout.addWidget(list_header)
+
         self.list_widget = QListWidget()
         self.list_widget.setStyleSheet(
-            "QListWidget { background-color: #14161f; border: 1px solid #252837; border-radius: 8px; padding: 6px; }"
-            "QListWidget::item { padding: 10px; border-radius: 6px; margin: 2px 0px; }"
+            "QListWidget { background-color: #0f1118; border: 1px solid #232535; border-radius: 8px; padding: 6px; }"
+            "QListWidget::item { padding: 9px; border-radius: 6px; margin: 2px 0px; color: #f1f5f9; }"
             "QListWidget::item:selected { background-color: #1e3a8a; color: #ffffff; }"
         )
         layout.addWidget(self.list_widget, stretch=1)
@@ -418,6 +632,33 @@ class SelectProjectDialog(QDialog):
 
         layout.addLayout(actions_layout)
 
+        self._refresh_paths_display()
+        self.refresh_list()
+
+    def _refresh_paths_display(self) -> None:
+        cfg = GlobalConfig.load()
+        self.lbl_io_path.setText(str(cfg.io_root))
+        self.lbl_work_path.setText(str(cfg.work_root))
+
+    def _change_io_root(self) -> None:
+        curr = GlobalConfig.load().io_root
+        chosen = QFileDialog.getExistingDirectory(self, "Select Input/Output Directory", curr)
+        if chosen:
+            set_workspace_roots(io_root=chosen)
+            self._refresh_paths_display()
+            self.refresh_list()
+
+    def _change_work_root(self) -> None:
+        curr = GlobalConfig.load().work_root
+        chosen = QFileDialog.getExistingDirectory(self, "Select Working Directory", curr)
+        if chosen:
+            set_workspace_roots(work_root=chosen)
+            self._refresh_paths_display()
+            self.refresh_list()
+
+    def _reset_roots(self) -> None:
+        reset_workspace_roots()
+        self._refresh_paths_display()
         self.refresh_list()
 
     def refresh_list(self) -> None:
@@ -448,20 +689,17 @@ class SelectProjectDialog(QDialog):
         self.accept()
 
     def _create_new(self) -> None:
-        dlg = InputDialog(
-            "Create New Project",
-            "Enter new project name (e.g. 'myrom' or 'hyperos'):",
-            placeholder="my_project",
-            parent=self,
-        )
+        dlg = CreateProjectDialog(parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            val = dlg.get_value()
-            if val:
-                try:
-                    create_project(val)
-                    self.refresh_list()
-                except Exception as exc:
-                    QMessageBox.critical(self, "Creation Error", str(exc))
+            name, io_root, work_root, desc, save_default = dlg.get_values()
+            if save_default:
+                set_workspace_roots(io_root=io_root, work_root=work_root)
+            try:
+                create_project(name, io_root=io_root, work_root=work_root, description=desc)
+                self._refresh_paths_display()
+                self.refresh_list()
+            except Exception as exc:
+                QMessageBox.critical(self, "Creation Error", str(exc))
 
     def _delete_selected(self) -> None:
         curr = self.list_widget.currentItem()
