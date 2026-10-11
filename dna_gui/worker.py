@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import subprocess
 import sys
 import traceback
 from typing import Any, Callable
@@ -106,7 +107,21 @@ class WorkerThread(QThread):
         except Exception as exc:
             err_trace = traceback.format_exc()
             self.error = f"{exc}\n{err_trace}"
-            self.log_signal.emit(f"=== Task Error: {exc} ===\n{err_trace}")
+
+            details = []
+            if isinstance(exc, subprocess.CalledProcessError):
+                cmd_repr = " ".join(str(a) for a in exc.cmd) if isinstance(exc.cmd, (list, tuple)) else str(exc.cmd)
+                details.append(f"> Command failed with exit code: {exc.returncode}")
+                details.append(f"> Failed command: {cmd_repr}")
+                err_out = (exc.stderr or "").strip()
+                std_out = (exc.output or "").strip()
+                if err_out:
+                    details.append(f"> Command error output:\n{err_out}")
+                elif std_out:
+                    details.append(f"> Command output:\n{std_out}")
+
+            detail_msg = ("\n" + "\n".join(details)) if details else ""
+            self.log_signal.emit(f"=== Task Error: {exc} ==={detail_msg}\n{err_trace}")
             self.failed_signal.emit(str(exc))
         finally:
             sys.stdout = orig_stdout

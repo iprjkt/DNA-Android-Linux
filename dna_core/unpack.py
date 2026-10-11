@@ -77,6 +77,10 @@ def unpack_image(
     destination.mkdir(parents=True, exist_ok=True)
     img_type = detect_image_type(src)
 
+    print(f"> Start unpacking partition: {src.name} <{img_type.value}>")
+    print(f"> Source path: {src}")
+    print(f"> Destination directory: {destination}")
+
     raw_temp: Path | None = None
     target_img = src
 
@@ -84,15 +88,18 @@ def unpack_image(
         # Step 1: If sparse image, unsparse it first
         if img_type == ImageType.SPARSE:
             raw_temp = _create_temp_raw_file(src, preferred_dir=destination)
+            src_mb = src.stat().st_size / (1024 * 1024)
+            print(f"> Image is Android sparse ({src_mb:.1f} MB). Unsparsing to temporary raw file...")
             sparse_to_raw(src, raw_temp)
             target_img = raw_temp
             img_type = detect_image_type(target_img)
+            raw_mb = raw_temp.stat().st_size / (1024 * 1024)
+            print(f"> Unsparse complete ({raw_mb:.1f} MB raw). Detected filesystem: <{img_type.value}>")
 
         # Step 2: Extract based on filesystem type
         if img_type == ImageType.EXT4:
-            # debugfs rdump / <destination>
+            print(f"> Extracting EXT4 filesystem tree using debugfs...")
             run_tool("debugfs", ["-R", f"rdump / {destination}", str(target_img)], check=True)
-            # Remove empty lost+found if created
             lost_found = destination / "lost+found"
             if lost_found.is_dir() and not any(lost_found.iterdir()):
                 try:
@@ -100,10 +107,10 @@ def unpack_image(
                 except OSError:
                     pass
         elif img_type == ImageType.EROFS:
-            # fsck.erofs --extract=<destination> <target_img>
+            print(f"> Extracting EROFS filesystem tree using fsck.erofs...")
             run_tool("fsck.erofs", [f"--extract={destination}", "--overwrite", str(target_img)], check=True)
         elif img_type == ImageType.F2FS:
-            # extract.f2fs -i <target_img> -o <destination>
+            print(f"> Extracting F2FS filesystem tree using extract.f2fs...")
             run_tool("extract.f2fs", ["-i", str(target_img), "-o", str(destination)], check=True)
         elif img_type == ImageType.SUPER_LP:
             raise ValueError(
@@ -114,22 +121,32 @@ def unpack_image(
                 f"Unsupported or unrecognized filesystem format for '{src.name}' (detected: {img_type.value})."
             )
 
+        # Count extracted items
+        extracted_count = sum(1 for _ in destination.rglob("*"))
+        print(f"> Extraction completed: {extracted_count} items extracted.")
+
         # Step 3: Preserve SELinux file_contexts and fs_config
+        print(f"> Scanning and preserving SELinux file_contexts and fs_config metadata...")
         config_dir = proj.paths.config_dir if proj else destination.parent / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
 
         fs_entries, fc_entries = scan_directory_fs_metadata(destination, mount_point=part_name)
         write_fs_config_file(fs_entries, config_dir / f"{part_name}_fs_config")
         write_file_contexts_file(fc_entries, config_dir / f"{part_name}_file_contexts")
+        print(f"  • fs_config entries: {len(fs_entries)} -> {config_dir / f'{part_name}_fs_config'}")
+        print(f"  • file_contexts entries: {len(fc_entries)} -> {config_dir / f'{part_name}_file_contexts'}")
+        print(f"> Partition successfully unpacked into: {destination}")
 
     finally:
         if raw_temp and raw_temp.exists():
+            print(f"> Cleaning up temporary raw image: {raw_temp.name}")
             try:
                 raw_temp.unlink()
             except OSError:
                 pass
 
     if delete_source:
+        print(f"> Deleting source image: {src}")
         src.unlink()
 
     return destination
@@ -158,15 +175,29 @@ def unpack_super(
 
     destination.mkdir(parents=True, exist_ok=True)
 
+    print(f"> Start unpacking dynamic super.img: {src.name}")
+    print(f"> Source path: {src}")
+    print(f"> Output destination: {destination}")
+    if partitions:
+        print(f"> Target partitions ({len(partitions)}): {', '.join(partitions)}")
+    else:
+        print("> Target partitions: extracting all available partitions")
+
     raw_temp: Path | None = None
     target_img = src
 
     try:
         # Check if super.img is sparse
-        if detect_image_type(src) == ImageType.SPARSE:
+        img_type = detect_image_type(src)
+        print(f"> Super image format: <{img_type.value}>")
+        if img_type == ImageType.SPARSE:
             raw_temp = _create_temp_raw_file(src, preferred_dir=destination)
+            src_mb = src.stat().st_size / (1024 * 1024)
+            print(f"> Super image is Android sparse ({src_mb:.1f} MB). Unsparsing to raw format...")
             sparse_to_raw(src, raw_temp)
             target_img = raw_temp
+            raw_mb = raw_temp.stat().st_size / (1024 * 1024)
+            print(f"> Unsparse complete ({raw_mb:.1f} MB raw).")
 
         args: list[str] = []
         if partitions:
@@ -175,6 +206,7 @@ def unpack_super(
         args.append(str(target_img))
         args.append(str(destination))
 
+        print(f"> Running lpunpack to extract partition images...")
         run_tool("lpunpack", args, check=True)
 
         extracted_imgs = [p for p in destination.glob("*.img") if p.is_file() and p.resolve() != src.resolve()]
@@ -189,17 +221,27 @@ def unpack_super(
                 or f"{p.stem}_b" in req_set
             ]
 
+        print(f"> Successfully extracted {len(extracted_imgs)} partition image(s):")
+        for img in extracted_imgs:
+            sz_mb = img.stat().st_size / (1024 * 1024)
+            print(f"  • {img.name} ({sz_mb:.1f} MB)")
+
         if auto_unpack_imgs:
-            for img in extracted_imgs:
+            print(f"> Automatically unpacking {len(extracted_imgs)} extracted partition image(s)...")
+            for idx, img in enumerate(extracted_imgs, start=1):
+                print(f"> [{idx}/{len(extracted_imgs)}] Processing {img.name}...")
                 unpack_image(img, project=proj)
 
         if delete_source:
+            print(f"> Removing source super image: {src.name}")
             src.unlink()
 
+        print(f"> Super image unpack completed successfully.")
         return extracted_imgs
 
     finally:
         if raw_temp and raw_temp.exists():
+            print(f"> Cleaning up temporary raw image: {raw_temp.name}")
             try:
                 raw_temp.unlink()
             except OSError:
@@ -297,7 +339,7 @@ def get_super_partitions_info(super_path: Path | str) -> list[SuperPartitionInfo
             return []
 
     try:
-        res = run_tool("lpdump", ["--json", raw_path], check=False, capture_output=True)
+        res = run_tool("lpdump", ["--json", raw_path], check=False, capture_output=True, log_cmd=False, stream=False)
         if res.returncode != 0 or not res.stdout:
             return []
 
@@ -364,8 +406,13 @@ def unpack_brotli(
     dst = Path(out_file).resolve() if out_file else src.with_suffix("")
     dst.parent.mkdir(parents=True, exist_ok=True)
 
+    print(f"> Decompressing Brotli archive: {src.name} -> {dst.name}")
     run_tool("brotli", ["-d", "-f", str(src), "-o", str(dst)], check=True)
+    if dst.is_file():
+        sz_mb = dst.stat().st_size / (1024 * 1024)
+        print(f"> Brotli decompression completed: {dst.name} ({sz_mb:.1f} MB)")
     if delete_source:
+        print(f"> Removing source archive: {src.name}")
         src.unlink()
     return dst
 
@@ -383,8 +430,13 @@ def unpack_zstd(
     dst = Path(out_file).resolve() if out_file else src.with_suffix("")
     dst.parent.mkdir(parents=True, exist_ok=True)
 
+    print(f"> Decompressing Zstandard archive: {src.name} -> {dst.name}")
     run_tool("zstd", ["-d", "-k", "-f", str(src), "-o", str(dst)], check=True)
+    if dst.is_file():
+        sz_mb = dst.stat().st_size / (1024 * 1024)
+        print(f"> Zstandard decompression completed: {dst.name} ({sz_mb:.1f} MB)")
     if delete_source:
+        print(f"> Removing source archive: {src.name}")
         src.unlink()
     return dst
 
@@ -403,7 +455,6 @@ def unpack_dat(
     if transfer_list:
         trans_file = Path(transfer_list).resolve()
     else:
-        # Match <prefix>.transfer.list
         name_root = src_dat.name
         if name_root.endswith(".new.dat"):
             name_root = name_root[:-8]
@@ -417,9 +468,15 @@ def unpack_dat(
         )
 
     dst_img = Path(out_file).resolve() if out_file else src_dat.parent / f"{trans_file.stem.replace('.transfer', '')}.img"
+    print(f"> Converting Android sparse DAT: {src_dat.name} -> {dst_img.name}")
+    print(f"> Using transfer list: {trans_file.name}")
     sdat2img(trans_file, src_dat, dst_img)
+    if dst_img.is_file():
+        sz_mb = dst_img.stat().st_size / (1024 * 1024)
+        print(f"> Conversion completed: {dst_img.name} ({sz_mb:.1f} MB)")
 
     if delete_source:
+        print(f"> Removing source files: {src_dat.name}, {trans_file.name}")
         src_dat.unlink()
         if trans_file.exists():
             trans_file.unlink()
@@ -450,19 +507,33 @@ def unpack_bin(
 
     destination.mkdir(parents=True, exist_ok=True)
 
+    print(f"> Extracting OTA payload partitions from: {src.name}")
+    print(f"> Destination directory: {destination}")
+    if partitions:
+        print(f"> Filter partitions: {', '.join(partitions)}")
+
     args = ["-o", str(destination)]
     if partitions:
         args.extend(["-p", ",".join(partitions)])
     args.append(str(src))
 
+    print(f"> Running payload-dumper-go...")
     run_tool("payload-dumper-go", args, check=True)
     extracted = [p for p in destination.glob("*.img") if p.is_file()]
+    print(f"> Extracted {len(extracted)} partition image(s):")
+    for img in extracted:
+        sz_mb = img.stat().st_size / (1024 * 1024)
+        print(f"  • {img.name} ({sz_mb:.1f} MB)")
 
     if auto_unpack_imgs:
-        for img in extracted:
+        print(f"> Automatically unpacking {len(extracted)} extracted partition image(s)...")
+        for idx, img in enumerate(extracted, start=1):
+            print(f"> [{idx}/{len(extracted)}] Unpacking {img.name}...")
             unpack_image(img, project=proj)
 
     if delete_source:
+        print(f"> Removing source payload: {src.name}")
         src.unlink()
 
+    print(f"> Payload extraction completed successfully.")
     return extracted

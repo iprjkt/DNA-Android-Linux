@@ -58,17 +58,29 @@ def repack_image(
 
     destination.parent.mkdir(parents=True, exist_ok=True)
 
+    print(f"> Start repacking partition image: {part_name}")
+    print(f"> Source directory: {src}")
+    print(f"> Destination image: {destination}")
+    print(f"> Target filesystem: <{fs_type}>, Output format: <{output_format}>")
+
     # Locate or generate fs_config and file_contexts
     config_dir = proj.paths.config_dir if proj else destination.parent / "config"
     fc_file = Path(file_contexts) if file_contexts else (config_dir / f"{part_name}_file_contexts")
     fs_file = Path(fs_config) if fs_config else (config_dir / f"{part_name}_fs_config")
 
     if not fs_file.is_file() or not fc_file.is_file():
+        print(f"> Scanning directory to generate fs_config and file_contexts...")
         fs_entries, fc_entries = scan_directory_fs_metadata(src, mount_point=part_name)
         if not fs_file.is_file():
             write_fs_config_file(fs_entries, fs_file)
+            print(f"  • fs_config entries: {len(fs_entries)} -> {fs_file}")
         if not fc_file.is_file():
             write_file_contexts_file(fc_entries, fc_file)
+            print(f"  • file_contexts entries: {len(fc_entries)} -> {fc_file}")
+    else:
+        print(f"> Using existing SELinux metadata:")
+        print(f"  • fs_config: {fs_file}")
+        print(f"  • file_contexts: {fc_file}")
 
     if fs_type == "ext4":
         # Calculate size: sum of directory sizes + 25% safety overhead + 16MB minimum
@@ -79,8 +91,12 @@ def repack_image(
             total_bytes = max(int(content_size * 1.25) + (16 * 1024 * 1024), 32 * 1024 * 1024)
 
         blocks = (total_bytes + 4095) // 4096
+        content_mb = content_size / (1024 * 1024)
+        total_mb = total_bytes / (1024 * 1024)
+        print(f"> Content size: {content_mb:.1f} MB, Allocated partition size: {total_mb:.1f} MB ({blocks} blocks)")
 
         # Step 1: mke2fs
+        print(f"> Creating EXT4 partition filesystem with mke2fs...")
         mke2fs_args = [
             "-O",
             "^has_journal,^metadata_csum,extent,huge_file,^flex_bg,^64bit,uninit_bg,dir_nlink,extra_isize",
@@ -103,6 +119,7 @@ def repack_image(
         run_tool("mke2fs", mke2fs_args, check=True)
 
         # Step 2: e2fsdroid
+        print(f"> Populating filesystem and applying SELinux permissions with e2fsdroid...")
         e2fsdroid_args = [
             "-e",
             "-T",
@@ -120,6 +137,7 @@ def repack_image(
         run_tool("e2fsdroid", e2fsdroid_args, check=True)
 
     elif fs_type == "erofs":
+        print(f"> Creating EROFS filesystem with mkfs.erofs (algorithm: {compress_erofs}, level: {erofs_level})...")
         erofs_args = [
             "-T",
             "1230768000",
@@ -135,17 +153,27 @@ def repack_image(
 
     # Format conversions if requested
     if output_format == "sparse":
+        print(f"> Converting raw partition image to Android sparse format...")
         sparse_out = destination.with_suffix(".simg")
         raw_to_sparse(destination, sparse_out)
         shutil.move(str(sparse_out), str(destination))
+        s_mb = destination.stat().st_size / (1024 * 1024)
+        print(f"> Sparse conversion completed: {destination.name} ({s_mb:.1f} MB)")
     elif output_format in ("dat", "br"):
+        print(f"> Converting partition image to Android sparse DAT...")
         out_dir = destination.parent
         trans_file, dat_file = img2sdat(destination, out_dir, partition_name=part_name)
+        print(f"> Generated sparse DAT: {dat_file.name}, {trans_file.name}")
         if output_format == "br":
+            print(f"> Compressing sparse DAT with Brotli (level: {brotli_level})...")
             br_out = dat_file.with_suffix(".dat.br")
             run_tool("brotli", [f"-q", str(brotli_level), "-f", str(dat_file), "-o", str(br_out)], check=True)
             dat_file.unlink()
+            br_mb = br_out.stat().st_size / (1024 * 1024)
+            print(f"> Brotli compression completed: {br_out.name} ({br_mb:.1f} MB)")
 
+    final_mb = destination.stat().st_size / (1024 * 1024)
+    print(f"> Repack partition completed successfully: {destination.name} ({final_mb:.1f} MB)")
     return destination
 
 
@@ -186,6 +214,12 @@ def repack_super(
     if sparse:
         lpmake_args.append("--sparse")
 
+    print(f"> Start repacking dynamic super.img: {dst.name}")
+    print(f"> Destination: {dst}")
+    print(f"> Slot configuration: <{slot_type.upper()}> (slots: {slot_count}), Group: {group_a}")
+    print(f"> Device size: {device_size / (1024 * 1024 * 1024):.2f} GB ({device_size} bytes)")
+    print(f"> Input partition images ({len(partition_images)}):")
+
     # Add each partition image
     for img_ref in partition_images:
         img_p = Path(img_ref).resolve()
@@ -196,12 +230,17 @@ def repack_super(
         # Slot suffix handling
         part_name = f"{raw_name}_a" if (slot_count > 1 and not raw_name.endswith(("_a", "_b"))) else raw_name
         size = img_p.stat().st_size
+        print(f"  • {part_name}: {size / (1024 * 1024):.1f} MB ({img_p.name})")
 
         lpmake_args.append(f"--partition={part_name}:readonly:{size}:{group_a}")
         lpmake_args.append(f"--image={part_name}={img_p}")
 
     lpmake_args.extend(["--output", str(dst)])
+    print(f"> Running lpmake to build super image...")
     run_tool("lpmake", lpmake_args, check=True)
+    if dst.is_file():
+        dst_mb = dst.stat().st_size / (1024 * 1024)
+        print(f"> Super image repacked successfully: {dst.name} ({dst_mb:.1f} MB)")
     return dst
 
 
@@ -219,7 +258,12 @@ def repack_zstd(
     dst = Path(out_file).resolve() if out_file else src.with_suffix(src.suffix + ".zst")
     dst.parent.mkdir(parents=True, exist_ok=True)
 
+    print(f"> Compressing file with Zstandard (level {level}): {src.name} -> {dst.name}")
     run_tool("zstd", [f"-{level}", "-T0", "-f", str(src), "-o", str(dst)], check=True)
+    if dst.is_file():
+        sz_mb = dst.stat().st_size / (1024 * 1024)
+        print(f"> Zstandard compression completed: {dst.name} ({sz_mb:.1f} MB)")
     if delete_source:
+        print(f"> Removing source file: {src.name}")
         src.unlink()
     return dst
