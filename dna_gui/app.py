@@ -505,9 +505,12 @@ class MainWindow(QMainWindow):
         if not proj:
             return
         super_img = proj.images / "super.img"
-        if not super_img.exists():
+        if not super_img.exists() and (proj.io_dir / "super.img").exists():
+            super_img = proj.io_dir / "super.img"
+        elif not super_img.exists():
+            start_dir = str(proj.io_dir if proj.io_dir.is_dir() else proj.images)
             chosen, _ = QFileDialog.getOpenFileName(
-                self, "Select super.img", str(proj.images), "Super Image (super.img *.img);;All Files (*)"
+                self, "Select super.img", start_dir, "Super Image (super.img *.img);;All Files (*)"
             )
             if not chosen:
                 return
@@ -717,6 +720,8 @@ class MainWindow(QMainWindow):
         if not proj:
             return
         chunks = sorted(list(proj.images.glob("super.img.*")))
+        if not chunks and proj.io_dir != proj.images:
+            chunks = sorted(list(proj.io_dir.glob("super.img.*")))
         if not chunks:
             QMessageBox.warning(
                 self,
@@ -733,9 +738,12 @@ class MainWindow(QMainWindow):
         if not proj:
             return
         super_img = proj.images / "super.img"
-        if not super_img.exists():
+        if not super_img.exists() and (proj.io_dir / "super.img").exists():
+            super_img = proj.io_dir / "super.img"
+        elif not super_img.exists():
+            start_dir = str(proj.io_dir if proj.io_dir.is_dir() else proj.images)
             chosen, _ = QFileDialog.getOpenFileName(
-                self, "Select super.img to split", str(proj.images), "Image (*.img);;All Files (*)"
+                self, "Select super.img to split", start_dir, "Image (*.img);;All Files (*)"
             )
             if not chosen:
                 return

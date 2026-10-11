@@ -19,6 +19,37 @@ from dna_core.sparse import sparse_to_raw
 from dna_core.tools import run_tool
 
 
+def _create_temp_raw_file(src: Path, preferred_dir: Path | None = None) -> Path:
+    """Create a temporary .raw file on the storage volume with ample disk space.
+    Avoids small RAM-backed /tmp mounts by prioritizing the directory with the most free space."""
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+    for cand in (preferred_dir, src.parent):
+        if cand is not None:
+            try:
+                p = Path(cand).resolve()
+                if p.is_dir() and os.access(p, os.W_OK) and p not in seen:
+                    candidates.append(p)
+                    seen.add(p)
+            except OSError:
+                pass
+
+    if candidates:
+        try:
+            candidates.sort(key=lambda d: shutil.disk_usage(d).free, reverse=True)
+        except OSError:
+            pass
+
+    for cand_dir in candidates:
+        try:
+            with tempfile.NamedTemporaryFile(dir=cand_dir, prefix=".tmp_raw_", suffix=".raw", delete=False) as tf:
+                return Path(tf.name)
+        except OSError:
+            pass
+    with tempfile.NamedTemporaryFile(prefix=".tmp_raw_", suffix=".raw", delete=False) as tf:
+        return Path(tf.name)
+
+
 def unpack_image(
     image_path: Path | str,
     out_dir: Path | str | None = None,
@@ -49,8 +80,7 @@ def unpack_image(
     try:
         # Step 1: If sparse image, unsparse it first
         if img_type == ImageType.SPARSE:
-            with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tf:
-                raw_temp = Path(tf.name)
+            raw_temp = _create_temp_raw_file(src, preferred_dir=destination)
             sparse_to_raw(src, raw_temp)
             target_img = raw_temp
             img_type = detect_image_type(target_img)
@@ -131,8 +161,7 @@ def unpack_super(
     try:
         # Check if super.img is sparse
         if detect_image_type(src) == ImageType.SPARSE:
-            with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tf:
-                raw_temp = Path(tf.name)
+            raw_temp = _create_temp_raw_file(src, preferred_dir=destination)
             sparse_to_raw(src, raw_temp)
             target_img = raw_temp
 
@@ -145,7 +174,7 @@ def unpack_super(
 
         run_tool("lpunpack", args, check=True)
 
-        extracted_imgs = [p for p in destination.glob("*.img") if p.is_file()]
+        extracted_imgs = [p for p in destination.glob("*.img") if p.is_file() and p.resolve() != src.resolve()]
 
         if auto_unpack_imgs:
             for img in extracted_imgs:
