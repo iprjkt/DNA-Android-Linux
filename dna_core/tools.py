@@ -53,6 +53,14 @@ KNOWN_TOOLS: list[ToolDefinition] = [
         debian_package="android-sdk-platform-tools",
     ),
     ToolDefinition(
+        name="lpdump",
+        category="Partition & Super",
+        description="Dump dynamic super.img partition metadata",
+        required=False,
+        arch_package="android-tools",
+        debian_package="android-sdk-platform-tools",
+    ),
+    ToolDefinition(
         name="simg2img",
         category="Partition & Super",
         description="Convert sparse Android images to raw images",

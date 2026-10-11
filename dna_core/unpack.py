@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
+import struct
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from dna_core.detection import ImageType, detect_image_type
@@ -175,6 +178,16 @@ def unpack_super(
         run_tool("lpunpack", args, check=True)
 
         extracted_imgs = [p for p in destination.glob("*.img") if p.is_file() and p.resolve() != src.resolve()]
+        if partitions:
+            req_set = set(partitions)
+            extracted_imgs = [
+                p for p in extracted_imgs
+                if p.stem in req_set
+                or p.stem.removesuffix("_a") in req_set
+                or p.stem.removesuffix("_b") in req_set
+                or f"{p.stem}_a" in req_set
+                or f"{p.stem}_b" in req_set
+            ]
 
         if auto_unpack_imgs:
             for img in extracted_imgs:
@@ -189,6 +202,151 @@ def unpack_super(
         if raw_temp and raw_temp.exists():
             try:
                 raw_temp.unlink()
+            except OSError:
+                pass
+
+
+@dataclass
+class SuperPartitionInfo:
+    """Represents a dynamic partition stored inside super.img."""
+
+    name: str              # Actual partition identifier for lpunpack (e.g. "system_a" or "system")
+    display_name: str      # Clean label (e.g. "system")
+    size_bytes: int        # Partition size in bytes
+    formatted_size: str    # Human-readable size string (e.g. "340.0K", "2.2G", "870.8M")
+
+    @property
+    def label(self) -> str:
+        return f"{self.display_name}({self.formatted_size})"
+
+
+def format_partition_size(size_bytes: int) -> str:
+    """Format partition size into K, M, G string matching Android DNA tool: e.g. 340.0K, 870.8M, 2.2G."""
+    if size_bytes >= 1024 * 1024 * 1024:
+        val = size_bytes / (1024 * 1024 * 1024)
+        return f"{val:.1f}G"
+    elif size_bytes >= 1024 * 1024:
+        val = size_bytes / (1024 * 1024)
+        return f"{val:.1f}M"
+    elif size_bytes >= 1024:
+        val = size_bytes / 1024
+        return f"{val:.1f}K"
+    else:
+        return f"{size_bytes}B"
+
+
+def get_super_partitions_info(super_path: Path | str) -> list[SuperPartitionInfo]:
+    """Inspect dynamic partition metadata inside super.img (sparse or raw) using lpdump."""
+    super_p = Path(super_path).resolve()
+    if not super_p.is_file():
+        return []
+
+    try:
+        with open(super_p, "rb") as f:
+            magic = f.read(4)
+    except OSError:
+        return []
+
+    raw_path = str(super_p)
+    temp_raw: Path | None = None
+
+    if magic == b"\x3a\xff\x26\xed":  # 0xed26ff3a: Android Sparse Image
+        # Extract small prefix (first 8MB) to read partition table geometry without full unsparse
+        temp_raw = _create_temp_raw_file(super_p)
+        try:
+            with open(super_p, "rb") as f, open(temp_raw, "wb") as out:
+                hdr = f.read(28)
+                if len(hdr) >= 28:
+                    magic_u, maj, min_, f_sz, c_sz, blk_sz, tot_blk, tot_chk, crc = struct.unpack("<I4H4I", hdr)
+                    written = 0
+                    for _ in range(tot_chk):
+                        if written >= 8 * 1024 * 1024:
+                            break
+                        ch_data = f.read(c_sz)
+                        if len(ch_data) < c_sz:
+                            break
+                        c_type, _, c_sz_blks, total_sz = struct.unpack("<2H2I", ch_data)
+                        data_sz = total_sz - c_sz
+                        out_sz = c_sz_blks * blk_sz
+                        if c_type == 0xCAC1:  # RAW
+                            d = f.read(data_sz)
+                            out.write(d)
+                            written += len(d)
+                        elif c_type == 0xCAC2:  # FILL
+                            fill = f.read(4)
+                            if data_sz > 4:
+                                f.seek(data_sz - 4, 1)
+                            pattern = fill * (blk_sz // 4)
+                            for _ in range(c_sz_blks):
+                                out.write(pattern)
+                                written += len(pattern)
+                                if written >= 8 * 1024 * 1024:
+                                    break
+                        elif c_type == 0xCAC3:  # DONT_CARE
+                            out.write(b"\x00" * out_sz)
+                            written += out_sz
+                        elif c_type == 0xCAC4:  # CRC32
+                            f.read(4)
+            raw_path = str(temp_raw)
+        except Exception:
+            if temp_raw and temp_raw.exists():
+                try:
+                    temp_raw.unlink()
+                except OSError:
+                    pass
+            return []
+
+    try:
+        res = run_tool("lpdump", ["--json", raw_path], check=False, capture_output=True)
+        if res.returncode != 0 or not res.stdout:
+            return []
+
+        data = json.loads(res.stdout)
+        raw_parts = data.get("partitions", [])
+
+        # Filter partitions that have a positive size (active dynamic partitions)
+        active_parts: list[tuple[str, int]] = []
+        for p in raw_parts:
+            name = p.get("name", "")
+            size_str = p.get("size", "0")
+            try:
+                size_bytes = int(size_str)
+            except (ValueError, TypeError):
+                size_bytes = 0
+            if name and size_bytes > 0:
+                active_parts.append((name, size_bytes))
+
+        if not active_parts:
+            return []
+
+        # Determine display name: if all active partitions end with '_a' and no active '_b' partitions exist, strip '_a'
+        names = [n for n, _ in active_parts]
+        has_a = any(n.endswith("_a") for n in names)
+        has_b = any(n.endswith("_b") for n in names)
+        strip_slot_a = has_a and not has_b
+
+        result: list[SuperPartitionInfo] = []
+        for name, size_bytes in active_parts:
+            if strip_slot_a and name.endswith("_a"):
+                disp = name[:-2]
+            else:
+                disp = name
+            result.append(
+                SuperPartitionInfo(
+                    name=name,
+                    display_name=disp,
+                    size_bytes=size_bytes,
+                    formatted_size=format_partition_size(size_bytes),
+                )
+            )
+
+        return result
+    except Exception:
+        return []
+    finally:
+        if temp_raw and temp_raw.exists():
+            try:
+                temp_raw.unlink()
             except OSError:
                 pass
 

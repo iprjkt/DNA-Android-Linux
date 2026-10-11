@@ -49,6 +49,7 @@ from dna_core.project import (
     select_project,
 )
 from dna_core.tools import run_doctor
+from dna_core.unpack import SuperPartitionInfo, get_super_partitions_info
 
 
 class ToggleSwitch(QAbstractButton):
@@ -1766,6 +1767,272 @@ class UnpackImgDialog(BaseOperationDialog):
 
     def get_selected_files(self) -> list[Path]:
         return self.file_picker.get_selected_files()
+
+
+class SuperPartitionSelectDialog(QDialog):
+    """Modal displaying list of partitions with size and checkboxes, matching Screenshot_2026-10-11-10-40-20-041_com.dna.tools.jpg."""
+
+    def __init__(
+        self,
+        partitions: list[SuperPartitionInfo],
+        selected_names: list[str] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Select Partitions")
+        self.setFixedWidth(440)
+        item_count = len(partitions)
+        calc_h = min(560, max(360, item_count * 46 + 120))
+        self.resize(440, calc_h)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setStyleSheet(
+            "QDialog {"
+            "   background-color: #16171b;"
+            "   border: 1px solid #282a35;"
+            "   border-radius: 20px;"
+            "}"
+            "QLabel { background: transparent; }"
+        )
+
+        self.partitions = partitions
+        sel_set = set(selected_names or [])
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 18)
+        layout.setSpacing(12)
+
+        # Scroll area for partition list
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { border: none; background: transparent; width: 6px; margin: 0; }"
+            "QScrollBar::handle:vertical { background: #334155; min-height: 20px; border-radius: 3px; }"
+            "QScrollBar::handle:vertical:hover { background: #475569; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+        )
+
+        content = QWidget()
+        content.setStyleSheet("background: transparent;")
+        list_layout = QVBoxLayout(content)
+        list_layout.setContentsMargins(0, 0, 4, 0)
+        list_layout.setSpacing(4)
+
+        self.row_widgets: list[tuple[SuperPartitionInfo, QCheckBox]] = []
+
+        if not partitions:
+            empty_lbl = QLabel("No dynamic partitions found in super.img.")
+            empty_lbl.setStyleSheet("color: #94a3b8; font-size: 13px; padding: 20px;")
+            empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            list_layout.addWidget(empty_lbl)
+        else:
+            for p in partitions:
+                row = QFrame()
+                row.setCursor(Qt.CursorShape.PointingHandCursor)
+                row.setStyleSheet(
+                    "QFrame {"
+                    "   background: transparent;"
+                    "   border-radius: 8px;"
+                    "   padding: 2px;"
+                    "}"
+                    "QFrame:hover {"
+                    "   background-color: #1f212a;"
+                    "}"
+                )
+                r_layout = QHBoxLayout(row)
+                r_layout.setContentsMargins(10, 8, 10, 8)
+
+                lbl = QLabel(p.label)
+                lbl.setStyleSheet("color: #ffffff; font-size: 13px; font-weight: 500;")
+                r_layout.addWidget(lbl)
+
+                r_layout.addStretch(1)
+
+                cb = QCheckBox()
+                cb.setChecked(p.name in sel_set or p.display_name in sel_set)
+                cb.setStyleSheet(
+                    "QCheckBox { background: transparent; }"
+                    "QCheckBox::indicator { width: 18px; height: 18px; border-radius: 4px; border: 1px solid #3b82f6; background: #131418; }"
+                    "QCheckBox::indicator:checked { background: #2563eb; }"
+                )
+                r_layout.addWidget(cb)
+
+                # Make row clickable
+                def make_click_handler(checkbox):
+                    def handler(event):
+                        child = row.childAt(event.pos())
+                        if child != checkbox:
+                            checkbox.setChecked(not checkbox.isChecked())
+                    return handler
+
+                row.mousePressEvent = make_click_handler(cb)
+
+                list_layout.addWidget(row)
+                self.row_widgets.append((p, cb))
+
+        list_layout.addStretch(1)
+        scroll.setWidget(content)
+        layout.addWidget(scroll, stretch=1)
+
+        # Action Buttons Footer
+        footer_layout = QHBoxLayout()
+        footer_layout.setSpacing(14)
+
+        self.cancel_btn = QPushButton("CANCEL")
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_btn.setStyleSheet(
+            "QPushButton {"
+            "   background-color: #262934;"
+            "   color: #cbd5e1;"
+            "   font-size: 13px;"
+            "   font-weight: 600;"
+            "   border-radius: 18px;"
+            "   height: 44px;"
+            "   border: none;"
+            "}"
+            "QPushButton:hover { background-color: #2f3342; color: #ffffff; }"
+        )
+        self.cancel_btn.clicked.connect(self.reject)
+        footer_layout.addWidget(self.cancel_btn)
+
+        self.confirm_btn = QPushButton("CONFIRM")
+        self.confirm_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.confirm_btn.setStyleSheet(
+            "QPushButton {"
+            "   background-color: #2563eb;"
+            "   color: #ffffff;"
+            "   font-size: 13px;"
+            "   font-weight: 600;"
+            "   border-radius: 18px;"
+            "   height: 44px;"
+            "   border: none;"
+            "}"
+            "QPushButton:hover { background-color: #1d4ed8; }"
+        )
+        self.confirm_btn.clicked.connect(self.accept)
+        footer_layout.addWidget(self.confirm_btn)
+
+        layout.addLayout(footer_layout)
+
+    def get_selected_partitions(self) -> list[str]:
+        return [p.name for p, cb in self.row_widgets if cb.isChecked()]
+
+    def get_selected_labels(self) -> list[str]:
+        return [p.label for p, cb in self.row_widgets if cb.isChecked()]
+
+
+class UnpackSuperDialog(BaseOperationDialog):
+    """Unpack super modal matching Screenshot_2026-10-11-10-40-16-953_com.dna.tools.jpg."""
+
+    def __init__(
+        self,
+        super_img: Path | str | None = None,
+        proj: ProjectPaths | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__("Unpack super", parent=parent)
+        self.super_img = Path(super_img).resolve() if super_img else None
+        self.proj = proj
+
+        # 1. Delete source file card
+        self.chk_delete_source = CheckboxCard("Delete source file", checked=False)
+        self.form_layout.addWidget(self.chk_delete_source)
+
+        # 2. Automatically unpack extracted IMG card
+        self.chk_auto_unpack = CheckboxCard("Automatically unpack extracted IMG", checked=False)
+        self.form_layout.addWidget(self.chk_auto_unpack)
+
+        # 3. Select partitions section header
+        self.add_section_header("Select partitions to extract (leave empty to extract all):")
+
+        # 4. Partition selector button
+        self.btn_select_partitions = QPushButton()
+        self.btn_select_partitions.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_select_partitions.setStyleSheet(
+            "QPushButton {"
+            "   background-color: #1c1d24;"
+            "   border: 1px solid #282a35;"
+            "   border-radius: 12px;"
+            "   padding: 12px 14px;"
+            "   text-align: left;"
+            "}"
+            "QPushButton:hover {"
+            "   border-color: #3b82f6;"
+            "   background-color: #21232d;"
+            "}"
+        )
+        self.btn_select_partitions.clicked.connect(self._open_partition_selector)
+
+        btn_layout = QHBoxLayout(self.btn_select_partitions)
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.lbl_part_text = QLabel("Please select")
+        self.lbl_part_text.setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 500;")
+        btn_layout.addWidget(self.lbl_part_text)
+
+        btn_layout.addStretch(1)
+
+        self.lbl_part_count = QLabel("0")
+        self.lbl_part_count.setStyleSheet(
+            "color: #3b82f6; font-size: 13px; font-weight: bold; padding-right: 4px;"
+        )
+        btn_layout.addWidget(self.lbl_part_count)
+
+        self.form_layout.addWidget(self.btn_select_partitions)
+
+        # Parse available partitions from super.img
+        self.available_partitions: list[SuperPartitionInfo] = []
+        self.selected_partition_names: list[str] = []
+        self.selected_partition_labels: list[str] = []
+
+        if self.super_img and self.super_img.is_file():
+            self.available_partitions = get_super_partitions_info(self.super_img)
+
+    def _open_partition_selector(self) -> None:
+        if not self.available_partitions:
+            if self.super_img and self.super_img.is_file():
+                self.available_partitions = get_super_partitions_info(self.super_img)
+            if not self.available_partitions:
+                QMessageBox.information(
+                    self,
+                    "No Partitions Found",
+                    "No dynamic partitions could be detected in super.img.\n"
+                    "Leaving this empty will extract all partitions automatically during unpack.",
+                )
+                return
+
+        dlg = SuperPartitionSelectDialog(
+            partitions=self.available_partitions,
+            selected_names=self.selected_partition_names,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.selected_partition_names = dlg.get_selected_partitions()
+            self.selected_partition_labels = dlg.get_selected_labels()
+            self._update_display()
+
+    def _update_display(self) -> None:
+        count = len(self.selected_partition_names)
+        self.lbl_part_count.setText(str(count))
+        if count == 0:
+            self.lbl_part_text.setText("Please select")
+            self.lbl_part_text.setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 500;")
+        elif count == 1:
+            self.lbl_part_text.setText(self.selected_partition_labels[0])
+            self.lbl_part_text.setStyleSheet("color: #ffffff; font-size: 13px; font-weight: 600;")
+        else:
+            self.lbl_part_text.setText(f"{count} partitions selected")
+            self.lbl_part_text.setStyleSheet("color: #ffffff; font-size: 13px; font-weight: 600;")
+
+    def get_delete_source(self) -> bool:
+        return self.chk_delete_source.is_checked()
+
+    def get_auto_unpack(self) -> bool:
+        return self.chk_auto_unpack.is_checked()
+
+    def get_selected_partitions(self) -> list[str] | None:
+        return list(self.selected_partition_names) if self.selected_partition_names else None
 
 
 class UnpackZstdDialog(BaseOperationDialog):

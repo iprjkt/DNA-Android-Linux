@@ -7,7 +7,14 @@ from pathlib import Path
 from dna_core.project import create_project
 from dna_core.repack import repack_image, repack_super, repack_zstd
 from dna_core.resize import resize_partition
-from dna_core.unpack import _create_temp_raw_file, unpack_image, unpack_super, unpack_zstd
+from dna_core.unpack import (
+    _create_temp_raw_file,
+    format_partition_size,
+    get_super_partitions_info,
+    unpack_image,
+    unpack_super,
+    unpack_zstd,
+)
 
 
 class TestUnpackRepack(unittest.TestCase):
@@ -137,6 +144,47 @@ class TestUnpackRepack(unittest.TestCase):
             # Ensure no lingering temp raw files left behind
             lingering = list(unpack_dir.glob(".tmp_raw_*")) + list(td.glob(".tmp_raw_*"))
             self.assertEqual(lingering, [])
+
+    def test_format_partition_size(self):
+        self.assertEqual(format_partition_size(512), "512B")
+        self.assertEqual(format_partition_size(348160), "340.0K")
+        self.assertEqual(format_partition_size(964034560), "919.4M")
+        self.assertEqual(format_partition_size(3389730816), "3.2G")
+
+    def test_get_super_partitions_info_and_selective_unpack(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            td = Path(tmpdir)
+            sys_img = td / "system.img"
+            sys_img.write_bytes(b"\x00" * (4 * 1024 * 1024))
+            ven_img = td / "vendor.img"
+            ven_img.write_bytes(b"\x00" * (4 * 1024 * 1024))
+
+            super_img = td / "super.img"
+            repack_super(
+                partition_images=[sys_img, ven_img],
+                out_super=super_img,
+                device_size=32 * 1024 * 1024,
+                group_name="dyn_part",
+                slot_type="a_only",
+                sparse=True,
+            )
+
+            # Test get_super_partitions_info
+            infos = get_super_partitions_info(super_img)
+            self.assertEqual(len(infos), 2)
+            names = [info.name for info in infos]
+            self.assertIn("system", names)
+            self.assertIn("vendor", names)
+            labels = [info.label for info in infos]
+            self.assertIn("system(4.0M)", labels)
+            self.assertIn("vendor(4.0M)", labels)
+
+            # Test selective unpack of only 'system'
+            unpack_dir = td / "super_sel_out"
+            extracted = unpack_super(super_img, out_dir=unpack_dir, partitions=["system"])
+            extracted_names = [e.name for e in extracted]
+            self.assertIn("system.img", extracted_names)
+            self.assertNotIn("vendor.img", extracted_names)
 
     def test_zstd_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmpdir:

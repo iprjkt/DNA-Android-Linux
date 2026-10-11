@@ -86,6 +86,7 @@ from dna_gui.widgets.dialogs import (
     RepackZstdDialog,
     SelectProjectDialog,
     UnpackImgDialog,
+    UnpackSuperDialog,
     UnpackZstdDialog,
 )
 from dna_gui.widgets.header import HeaderWidget
@@ -516,7 +517,21 @@ class MainWindow(QMainWindow):
                 return
             super_img = Path(chosen)
 
-        self.run_async_task("Unpack super.img", unpack_super, super_img, proj.images)
+        dlg = UnpackSuperDialog(super_img=super_img, proj=proj, parent=self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            del_src = dlg.get_delete_source()
+            auto_unpack = dlg.get_auto_unpack()
+            partitions = dlg.get_selected_partitions()
+
+            self.run_async_task(
+                "Unpack super.img",
+                unpack_super,
+                super_img,
+                proj.images,
+                partitions=partitions,
+                auto_unpack_imgs=auto_unpack,
+                delete_source=del_src,
+            )
 
     def _action_resize_img(self) -> None:
         proj = self._require_project()
