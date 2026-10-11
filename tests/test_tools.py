@@ -41,6 +41,20 @@ class TestTools(unittest.TestCase):
         deb_cmd = get_install_command(missing, distro="debian")
         self.assertIn("apt-get install", deb_cmd)
 
+    def test_run_tool_streaming(self):
+        from dna_core.tools import run_tool
+        res = run_tool("zstd", ["--version"], check=True, log_cmd=False, stream=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("zstandard", res.stdout.lower())
+
+    def test_run_tool_failure_captures_output(self):
+        import subprocess
+        from dna_core.tools import run_tool
+        with self.assertRaises(subprocess.CalledProcessError) as ctx:
+            run_tool("zstd", ["--invalid-flag-xyz"], check=True, log_cmd=False, stream=True)
+        self.assertNotEqual(ctx.exception.returncode, 0)
+        self.assertTrue(bool(ctx.exception.output or ctx.exception.stderr))
+
 
 if __name__ == "__main__":
     unittest.main()

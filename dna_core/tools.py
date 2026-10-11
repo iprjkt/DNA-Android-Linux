@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -337,16 +338,63 @@ def run_tool(
     tool_overrides: dict[str, str] | None = None,
     check: bool = True,
     capture_output: bool = True,
+    log_cmd: bool = True,
+    stream: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    """Execute a native tool command line securely."""
+    """Execute a native tool command line securely with optional real-time streaming."""
     tool_path = resolve_tool_path(name, tool_overrides)
     cmd = [str(tool_path)] + args
-    return subprocess.run(
+
+    if log_cmd:
+        print(f"[CMD] {name} {' '.join(args)}")
+        try:
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+    if not stream:
+        return subprocess.run(
+            cmd,
+            cwd=str(cwd) if cwd else None,
+            check=check,
+            capture_output=capture_output,
+            text=True,
+        )
+
+    # Real-time streaming execution
+    proc = subprocess.Popen(
         cmd,
         cwd=str(cwd) if cwd else None,
-        check=check,
-        capture_output=capture_output,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
+        bufsize=1,
+    )
+
+    captured_lines: list[str] = []
+    if proc.stdout:
+        for line in iter(proc.stdout.readline, ""):
+            captured_lines.append(line)
+            clean_line = line.rstrip("\r\n")
+            if clean_line:
+                print(clean_line)
+                try:
+                    sys.stdout.flush()
+                except Exception:
+                    pass
+        proc.stdout.close()
+
+    retcode = proc.wait()
+    output_text = "".join(captured_lines)
+
+    if check and retcode != 0:
+        raise subprocess.CalledProcessError(retcode, cmd, output=output_text, stderr=output_text)
+
+    return subprocess.CompletedProcess(
+        args=cmd,
+        returncode=retcode,
+        stdout=output_text,
+        stderr="",
     )
 
 

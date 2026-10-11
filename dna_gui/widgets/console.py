@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QTextCursor
+from PyQt6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -119,31 +119,98 @@ class ConsoleWidget(QWidget):
 
         layout.addLayout(self.btn_layout)
 
+    @staticmethod
+    def _get_format_for_line(line: str) -> QTextCharFormat:
+        fmt = QTextCharFormat()
+        stripped = line.strip()
+        upper = stripped.upper()
+
+        if stripped.startswith(("[CMD]", "> [CMD]")):
+            fmt.setForeground(QColor("#38bdf8"))  # Cyan / neon blue
+            fmt.setFontWeight(QFont.Weight.Bold.value)
+        elif stripped.startswith("=== Starting Task"):
+            fmt.setForeground(QColor("#60a5fa"))  # Bright Sky Blue
+            fmt.setFontWeight(QFont.Weight.Bold.value)
+        elif (
+            stripped.startswith("=== Task Finished")
+            or "COMPLETED SUCCESSFULLY" in upper
+            or "SCRIPT EXECUTION COMPLETED" in upper
+            or "DECOMPRESSION COMPLETED" in upper
+            or "EXTRACTION COMPLETED" in upper
+            or "REPACK PARTITION COMPLETED" in upper
+            or "REPACK COMPLETED" in upper
+            or "SUCCESSFULLY EXTRACTED" in upper
+        ):
+            fmt.setForeground(QColor("#4ade80"))  # Emerald Green
+            fmt.setFontWeight(QFont.Weight.Bold.value)
+        elif (
+            stripped.startswith("=== Task Error")
+            or stripped.startswith("[ERROR]")
+            or "TRACEBACK (MOST RECENT CALL LAST)" in upper
+            or "ERROR:" in upper
+            or "CALLEDPROCESSERROR" in upper
+            or upper.startswith("TRACEBACK")
+            or upper.startswith("EXCEPTION")
+        ):
+            fmt.setForeground(QColor("#f87171"))  # Soft Red
+            fmt.setFontWeight(QFont.Weight.Bold.value)
+        elif (
+            stripped.startswith("[WARNING]")
+            or "WARNING:" in upper
+        ):
+            fmt.setForeground(QColor("#fbbf24"))  # Amber
+            fmt.setFontWeight(QFont.Weight.Bold.value)
+        elif stripped.startswith("•") or stripped.startswith("  •"):
+            fmt.setForeground(QColor("#93c5fd"))  # Soft Blue bullet
+        elif stripped.startswith(">"):
+            fmt.setForeground(QColor("#e2e8f0"))  # Crisp light gray
+        else:
+            fmt.setForeground(QColor("#94a3b8"))  # Slate gray for sub-tool output
+
+        return fmt
+
     def append_log(self, text: str) -> None:
-        """Append log line with '> ' prefix formatting and auto-scroll to the end."""
+        """Append log line with syntax coloring and auto-scroll to the end."""
         if not text:
             return
 
         lines = text.splitlines()
+        cursor = self.text_edit.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+
         for line in lines:
             line_stripped = line.strip()
             if not line_stripped:
-                self.text_edit.appendPlainText("")
+                if self.text_edit.document().isEmpty():
+                    cursor.insertText("")
+                else:
+                    cursor.insertBlock()
                 continue
 
             # Format like the original DNA-Android output
-            if (
+            if line.startswith("   ") or line.startswith("  ") or line.startswith("\t"):
+                formatted = line
+            elif (
                 line_stripped.startswith(">")
                 or line_stripped.startswith("[")
+                or line_stripped.startswith("===")
+                or line_stripped.startswith("•")
                 or "Script execution" in line_stripped
             ):
                 formatted = line_stripped
             else:
                 formatted = f"> {line_stripped}"
 
-            self.text_edit.appendPlainText(formatted)
+            fmt = self._get_format_for_line(formatted)
 
-        self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+            if self.text_edit.document().isEmpty():
+                cursor.insertText(formatted, fmt)
+            else:
+                cursor.insertBlock()
+                cursor.insertText(formatted, fmt)
+
+        self.text_edit.setTextCursor(cursor)
+        self.text_edit.ensureCursorVisible()
 
     def set_status(self, text: str, running: bool = False, error: bool = False) -> None:
         """Update action title and progress bar state matching the original Android behavior."""
@@ -162,8 +229,7 @@ class ConsoleWidget(QWidget):
                 # Append standard completion note if not already present
                 plain = self.text_edit.toPlainText().strip()
                 if not plain.endswith("Script execution completed"):
-                    self.text_edit.appendPlainText("Script execution completed")
-                    self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+                    self.append_log("Script execution completed")
 
     def clear_logs(self) -> None:
         """Clear all terminal text and reset view to initial state."""

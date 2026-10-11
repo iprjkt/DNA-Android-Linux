@@ -89,9 +89,45 @@ class TestDnaGui(unittest.TestCase):
         console.copy_logs()
         self.assertEqual(console.copy_btn.text(), "COPIED TO CLIPBOARD")
 
+        # Test formatting styles
+        fmt_cmd = console._get_format_for_line("[CMD] simg2img a.img b.raw")
+        self.assertEqual(fmt_cmd.foreground().color().name().lower(), "#38bdf8")
+
+        fmt_start = console._get_format_for_line("=== Starting Task: Unpack ===")
+        self.assertEqual(fmt_start.foreground().color().name().lower(), "#60a5fa")
+
+        fmt_done = console._get_format_for_line("=== Task Finished Successfully: Unpack ===")
+        self.assertEqual(fmt_done.foreground().color().name().lower(), "#4ade80")
+
+        fmt_err = console._get_format_for_line("=== Task Error: Failed ===")
+        self.assertEqual(fmt_err.foreground().color().name().lower(), "#f87171")
+
+        fmt_bullet = console._get_format_for_line("  • system.img (4.0 MB)")
+        self.assertEqual(fmt_bullet.foreground().color().name().lower(), "#93c5fd")
+
         console.clear_logs()
         self.assertEqual(console.text_edit.toPlainText(), "")
         self.assertTrue(console.exit_btn.isHidden())
+
+    def test_worker_thread_called_process_error(self) -> None:
+        """WorkerThread formats CalledProcessError with detailed command and output."""
+        import subprocess
+
+        def failing_task():
+            raise subprocess.CalledProcessError(1, ["simg2img", "in.img", "out.raw"], output="Invalid sparse file header")
+
+        worker = WorkerThread("FailingTask", failing_task)
+        errors = []
+        logs = []
+        worker.failed_signal.connect(lambda err: errors.append(err))
+        worker.log_signal.connect(lambda msg: logs.append(msg))
+
+        worker.run()
+        self.assertEqual(len(errors), 1)
+        log_dump = "\n".join(logs)
+        self.assertIn("Command failed with exit code: 1", log_dump)
+        self.assertIn("simg2img in.img out.raw", log_dump)
+        self.assertIn("Invalid sparse file header", log_dump)
 
     def test_about_dialog(self) -> None:
         """AboutDialog initializes with version, title, and toggle switch."""
