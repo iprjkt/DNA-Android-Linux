@@ -54,7 +54,7 @@ def get_menu_items(state: TUIState) -> List[MenuItem]:
         items = [
             MenuItem("select_proj", "Select Project", "Switch the currently active workspace"),
             MenuItem("create_proj", "Create New Project", "Create a new project workspace directory"),
-            MenuItem("list_proj", "List Projects", "View all project workspaces in ~/DNA"),
+            MenuItem("list_proj", "List Projects", "View all project workspaces"),
             MenuItem("delete_proj", "Delete Project", "Remove an existing workspace directory"),
             MenuItem("unzip_rom", "Unzip ROM Archive", "Extract a ROM ZIP into active project"),
             MenuItem("doctor", "Tool Doctor", "Inspect native tools and system diagnostics"),

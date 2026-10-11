@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from dna_core.project import create_project
 from dna_core.repack import repack_image, repack_super, repack_zstd
 from dna_core.resize import resize_partition
 from dna_core.unpack import unpack_image, unpack_super, unpack_zstd
@@ -119,6 +120,43 @@ class TestUnpackRepack(unittest.TestCase):
             resize_partition(img_path, extra_mb=4)
             new_size = img_path.stat().st_size
             self.assertEqual(new_size, orig_size + (4 * 1024 * 1024))
+
+    def test_split_project_unpack_repack_flow(self):
+        with tempfile.TemporaryDirectory() as tmp_io, tempfile.TemporaryDirectory() as tmp_work:
+            io_root = Path(tmp_io)
+            work_root = Path(tmp_work)
+
+            proj = create_project(
+                name="jacobi_flow",
+                io_root=io_root,
+                work_root=work_root,
+                set_active=False,
+            )
+
+            # Create an ext4 product.img in io_dir
+            src_dir = work_root / "temp_product_src"
+            src_dir.mkdir()
+            (src_dir / "app").mkdir()
+            (src_dir / "app" / "MiuiHome.apk").write_bytes(b"APK_DATA")
+            (src_dir / "build.prop").write_text("ro.product.name=jacobi\n", encoding="utf-8")
+
+            input_img = proj.paths.io_dir / "product.img"
+            repack_image(src_dir=src_dir, out_img=input_img, fs_type="ext4", label="product")
+            self.assertTrue(input_img.is_file())
+
+            # Unpack into project: should go directly into proj.paths.work_dir / "product"
+            # and metadata in proj.paths.work_dir / "config"
+            unpack_dest = unpack_image(input_img, project=proj)
+            self.assertEqual(unpack_dest, proj.paths.work_dir / "product")
+            self.assertTrue(unpack_dest.is_dir())
+            self.assertTrue((unpack_dest / "build.prop").is_file())
+            self.assertTrue((proj.paths.config_dir / "product_fs_config").is_file())
+            self.assertTrue((proj.paths.config_dir / "product_file_contexts").is_file())
+
+            # Repack from project: should output to proj.paths.out_dir / "product.img"
+            out_img = repack_image(src_dir=unpack_dest, project=proj)
+            self.assertEqual(out_img, proj.paths.out_dir / "product.img")
+            self.assertTrue(out_img.is_file())
 
 
 if __name__ == "__main__":

@@ -35,7 +35,8 @@ def create_cmd(ctx_obj, name: str, desc: str, dry_run: bool) -> None:
     try:
         project = create_project(name=name, description=desc)
         console.print(f"[bold green]✓ Successfully created project:[/bold green] [bold cyan]{project.name}[/bold cyan]")
-        console.print(f"  Location: [dim]{project.directory}[/dim]")
+        console.print(f"  IO Directory:   [dim]{project.paths.io_dir}[/dim]")
+        console.print(f"  Work Directory: [dim]{project.paths.work_dir}[/dim]")
         console.print(f"  Active project set to: [bold]{project.name}[/bold]")
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
@@ -57,7 +58,8 @@ def select_cmd(ctx_obj, name: str, dry_run: bool) -> None:
     try:
         project = select_project(name)
         console.print(f"[bold green]✓ Active project selected:[/bold green] [bold cyan]{project.name}[/bold cyan]")
-        console.print(f"  Location: [dim]{project.directory}[/dim]")
+        console.print(f"  IO Directory:   [dim]{project.paths.io_dir}[/dim]")
+        console.print(f"  Work Directory: [dim]{project.paths.work_dir}[/dim]")
     except Exception as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise click.Abort()
