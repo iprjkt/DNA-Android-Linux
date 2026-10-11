@@ -503,6 +503,80 @@ class TestDnaGui(unittest.TestCase):
             self.assertEqual(dlg.lbl_work_path.text(), str(get_default_work_root()))
             dlg.close()
 
+    def test_super_partition_select_dialog(self) -> None:
+        """Verify SuperPartitionSelectDialog displays partitions and tracks selection."""
+        from dna_core.unpack import SuperPartitionInfo
+        from dna_gui.widgets.dialogs import SuperPartitionSelectDialog
+
+        parts = [
+            SuperPartitionInfo(name="system_a", display_name="system", size_bytes=919000000, formatted_size="870.8M"),
+            SuperPartitionInfo(name="product_a", display_name="product", size_bytes=2300000000, formatted_size="2.2G"),
+            SuperPartitionInfo(name="vendor_a", display_name="vendor", size_bytes=870000000, formatted_size="829.7M"),
+        ]
+
+        dlg = SuperPartitionSelectDialog(partitions=parts, selected_names=["product_a"])
+        self.assertEqual(len(dlg.row_widgets), 3)
+
+        # Check initial state: product_a should be checked
+        self.assertEqual(dlg.get_selected_partitions(), ["product_a"])
+        self.assertEqual(dlg.get_selected_labels(), ["product(2.2G)"])
+
+        # Check system_a as well
+        dlg.row_widgets[0][1].setChecked(True)
+        self.assertEqual(dlg.get_selected_partitions(), ["system_a", "product_a"])
+        self.assertEqual(dlg.get_selected_labels(), ["system(870.8M)", "product(2.2G)"])
+
+        dlg.close()
+
+    def test_unpack_super_dialog(self) -> None:
+        """Verify UnpackSuperDialog handles delete source, auto unpack, and partition selection."""
+        from dna_core.unpack import SuperPartitionInfo
+        from dna_gui.widgets.dialogs import UnpackSuperDialog
+
+        dlg = UnpackSuperDialog()
+        self.assertFalse(dlg.get_delete_source())
+        self.assertFalse(dlg.get_auto_unpack())
+        self.assertIsNone(dlg.get_selected_partitions())
+
+        # Toggle checkboxes
+        dlg.chk_delete_source.set_checked(True)
+        dlg.chk_auto_unpack.set_checked(True)
+        self.assertTrue(dlg.get_delete_source())
+        self.assertTrue(dlg.get_auto_unpack())
+
+        # Mock selected partitions
+        dlg.selected_partition_names = ["system_a", "vendor_a"]
+        dlg.selected_partition_labels = ["system(870.8M)", "vendor(829.7M)"]
+        dlg._update_display()
+
+        self.assertEqual(dlg.lbl_part_count.text(), "2")
+        self.assertEqual(dlg.lbl_part_text.text(), "2 partitions selected")
+        self.assertEqual(dlg.get_selected_partitions(), ["system_a", "vendor_a"])
+        dlg.close()
+
+    def test_action_unpack_super_flow(self) -> None:
+        """Verify _action_unpack_super launches async task when accepted."""
+        from unittest.mock import patch, MagicMock
+        from dna_gui.widgets.dialogs import UnpackSuperDialog
+        from PyQt6.QtWidgets import QDialog
+
+        with TemporaryDirectory() as tmpdir:
+            td = Path(tmpdir)
+            proj = create_project("test_super_flow", io_root=td / "io", work_root=td / "work", set_active=False)
+            super_file = proj.paths.images / "super.img"
+            super_file.parent.mkdir(parents=True, exist_ok=True)
+            super_file.touch()
+
+            win = MainWindow()
+            with patch.object(win, "_require_project", return_value=proj.paths), \
+                 patch.object(UnpackSuperDialog, "exec", return_value=QDialog.DialogCode.Accepted), \
+                 patch.object(win, "run_async_task") as mock_run:
+                win._action_unpack_super()
+                self.assertTrue(mock_run.called)
+                args = mock_run.call_args[0]
+                self.assertEqual(args[0], "Unpack super.img")
+            win.close()
+
 
 if __name__ == "__main__":
     unittest.main()
