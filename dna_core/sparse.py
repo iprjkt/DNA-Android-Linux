@@ -8,10 +8,17 @@ from pathlib import Path
 
 from dna_core.detection import SPARSE_MAGIC
 from dna_core.tools import run_tool
+try:
+    from dna_core import dna_core_cpp
+    _HAVE_CPP = True
+except ImportError:
+    _HAVE_CPP = False
 
 
 def is_sparse_image(file_path: Path | str) -> bool:
     """Return True if the file begins with Android sparse magic bytes."""
+    if _HAVE_CPP:
+        return dna_core_cpp.is_sparse_image(str(file_path))
     p = Path(file_path)
     if not p.is_file() or p.stat().st_size < 4:
         return False
@@ -83,6 +90,12 @@ def split_sparse_image(
 
     if parts < 2 or parts > 30:
         raise ValueError(f"Number of parts must be between 2 and 30 (got {parts}).")
+
+    if _HAVE_CPP:
+        try:
+            return [Path(p) for p in dna_core_cpp.split_sparse_image(str(src), str(target_dir), parts, prefix or "")]
+        except Exception:
+            pass
 
     base_name = prefix or src.name
     total_size = src.stat().st_size

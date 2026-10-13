@@ -23,6 +23,13 @@ class FsConfigEntry:
         return base
 
 
+try:
+    from dna_core import dna_core_cpp
+    _HAVE_CPP = True
+except ImportError:
+    _HAVE_CPP = False
+
+
 def scan_directory_fs_metadata(
     root_dir: Path | str,
     mount_point: str = "system",
@@ -30,6 +37,17 @@ def scan_directory_fs_metadata(
     """Scan an extracted directory tree and generate fs_config and file_contexts entries."""
     root = Path(root_dir).resolve()
     clean_mount = mount_point.strip("/")
+
+    if _HAVE_CPP:
+        try:
+            cpp_res = dna_core_cpp.scan_directory_fs_metadata(str(root), clean_mount)
+            fs_list = [
+                FsConfigEntry(path=e.path, uid=e.uid, gid=e.gid, mode=e.mode, capabilities=e.capabilities or None)
+                for e in cpp_res.fs_entries
+            ]
+            return fs_list, cpp_res.fc_entries
+        except Exception:
+            pass
 
     fs_entries: list[FsConfigEntry] = []
     fc_entries: list[tuple[str, str]] = []
