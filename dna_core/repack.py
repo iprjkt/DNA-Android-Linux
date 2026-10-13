@@ -6,7 +6,13 @@ import os
 import shutil
 from pathlib import Path
 
-from dna_core.fs_metadata import scan_directory_fs_metadata, write_file_contexts_file, write_fs_config_file
+from dna_core.fs_metadata import (
+    scan_directory_fs_metadata,
+    sync_file_contexts_file,
+    sync_fs_config_file,
+    write_file_contexts_file,
+    write_fs_config_file,
+)
 from dna_core.project import Project, get_current_project
 from dna_core.sdat import img2sdat
 from dna_core.sparse import raw_to_sparse
@@ -47,7 +53,12 @@ def repack_image(
         raise NotADirectoryError(f"Source directory '{src}' does not exist.")
 
     part_name = label or src.name.replace("_unpacked", "")
-    proj = project or (get_current_project() if not out_img else None)
+    proj = project
+    if not proj:
+        try:
+            proj = get_current_project()
+        except Exception:
+            proj = None
 
     if out_img:
         destination = Path(out_img).resolve()
@@ -64,9 +75,37 @@ def repack_image(
     print(f"> Target filesystem: <{fs_type}>, Output format: <{output_format}>")
 
     # Locate or generate fs_config and file_contexts
-    config_dir = proj.paths.config_dir if proj else destination.parent / "config"
-    fc_file = Path(file_contexts) if file_contexts else (config_dir / f"{part_name}_file_contexts")
-    fs_file = Path(fs_config) if fs_config else (config_dir / f"{part_name}_fs_config")
+    config_dir_candidates: list[Path] = []
+    if proj:
+        config_dir_candidates.append(proj.paths.config_dir)
+    config_dir_candidates.append(src.parent / "config")
+    if src.parent.name == "unpacked":
+        config_dir_candidates.append(src.parent.parent / "config")
+    config_dir_candidates.append(destination.parent / "config")
+
+    fc_file: Path | None = Path(file_contexts).resolve() if file_contexts else None
+    fs_file: Path | None = Path(fs_config).resolve() if fs_config else None
+
+    if not fc_file or not fc_file.is_file():
+        for cd in config_dir_candidates:
+            cand = cd / f"{part_name}_file_contexts"
+            if cand.is_file():
+                fc_file = cand
+                break
+
+    if not fs_file or not fs_file.is_file():
+        for cd in config_dir_candidates:
+            cand = cd / f"{part_name}_fs_config"
+            if cand.is_file():
+                fs_file = cand
+                break
+
+    target_config_dir = config_dir_candidates[0]
+    target_config_dir.mkdir(parents=True, exist_ok=True)
+    if not fc_file:
+        fc_file = target_config_dir / f"{part_name}_file_contexts"
+    if not fs_file:
+        fs_file = target_config_dir / f"{part_name}_fs_config"
 
     if not fs_file.is_file() or not fc_file.is_file():
         print(f"> Scanning directory to generate fs_config and file_contexts...")
@@ -81,6 +120,10 @@ def repack_image(
         print(f"> Using existing SELinux metadata:")
         print(f"  • fs_config: {fs_file}")
         print(f"  • file_contexts: {fc_file}")
+
+    # Synchronize and sanitize fs_config and file_contexts for ext4/erofs
+    sync_fs_config_file(src, mount_point=part_name, fs_file=fs_file)
+    sync_file_contexts_file(mount_point=part_name, fc_file=fc_file)
 
     if fs_type == "ext4":
         # Calculate size: sum of directory sizes + 25% safety overhead + 16MB minimum

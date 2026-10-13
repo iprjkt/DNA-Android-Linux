@@ -59,8 +59,12 @@ FsMetadataResult scan_directory_fs_metadata(
 
     // Traverse directory tree using std::filesystem
     for (const auto& entry : fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied, ec)) {
-        auto rel_p = fs::relative(entry.path(), root, ec);
-        if (ec) continue;
+        if (ec) {
+            ec.clear();
+            continue;
+        }
+        auto rel_p = entry.path().lexically_relative(root);
+        if (rel_p.empty() || rel_p == ".") continue;
 
         std::string rel_str = rel_p.string();
         std::string target_path = clean_mount.empty() ? rel_str : (clean_mount + "/" + rel_str);
