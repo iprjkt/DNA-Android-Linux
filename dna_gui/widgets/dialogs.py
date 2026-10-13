@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
@@ -913,6 +913,21 @@ class DoctorDialog(QDialog):
 # Reusable Extended Operation Dialog Components (UI_example/1)
 # =====================================================================
 
+def _dedup_paths(paths: Iterable[Path]) -> list[Path]:
+    """Return a list of Paths preserving order without duplicate canonical paths."""
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for p in paths:
+        try:
+            res = p.resolve()
+        except OSError:
+            res = p
+        if res not in seen:
+            seen.add(res)
+            result.append(p)
+    return result
+
+
 def get_repack_partition_candidates(proj: ProjectPaths | None, mode: str = "all") -> list[Path]:
     """Detect real partition targets from workspace: unpacked folders and partition .img files."""
     if not proj:
@@ -1187,8 +1202,13 @@ class FileListSelectDialog(QDialog):
             "}"
         )
 
-        self.all_files = list(files)
-        selected_set = {f.resolve() for f in (selected_files or [])}
+        self.all_files = _dedup_paths(files)
+        selected_set: set[Path] = set()
+        for f in (selected_files or []):
+            try:
+                selected_set.add(f.resolve())
+            except OSError:
+                selected_set.add(f)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -1313,12 +1333,20 @@ class FileListSelectDialog(QDialog):
             self._add_custom_path(Path(chosen))
 
     def _add_custom_path(self, fp: Path) -> None:
-        resolved = fp.resolve()
+        try:
+            resolved = fp.resolve()
+        except OSError:
+            resolved = fp
         for i in range(self.list_widget.count()):
             existing = self.list_widget.item(i).data(Qt.ItemDataRole.UserRole)
-            if isinstance(existing, Path) and existing.resolve() == resolved:
-                self.list_widget.item(i).setCheckState(Qt.CheckState.Checked)
-                return
+            if isinstance(existing, Path):
+                try:
+                    ext_res = existing.resolve()
+                except OSError:
+                    ext_res = existing
+                if ext_res == resolved:
+                    self.list_widget.item(i).setCheckState(Qt.CheckState.Checked)
+                    return
         self.all_files.append(fp)
         self._add_item_widget(fp, checked=True)
 
@@ -1330,7 +1358,7 @@ class FileListSelectDialog(QDialog):
                 fp = item.data(Qt.ItemDataRole.UserRole)
                 if isinstance(fp, Path):
                     selected.append(fp)
-        return selected
+        return _dedup_paths(selected)
 
 
 class FileSelectField(QWidget):
@@ -1346,7 +1374,7 @@ class FileSelectField(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self.candidate_files = list(candidate_files or [])
+        self.candidate_files = _dedup_paths(candidate_files or [])
         self.selected_files: list[Path] = []
         self.dialog_title = dialog_title
 
@@ -1395,17 +1423,25 @@ class FileSelectField(QWidget):
             layout.addWidget(sub_lbl)
 
     def set_candidate_files(self, files: list[Path]) -> None:
-        self.candidate_files = list(files)
-        cand_set = {f.resolve() for f in self.candidate_files}
-        self.selected_files = [f for f in self.selected_files if f.resolve() in cand_set]
+        self.candidate_files = _dedup_paths(files)
+        cand_set: set[Path] = set()
+        for f in self.candidate_files:
+            try:
+                cand_set.add(f.resolve())
+            except OSError:
+                cand_set.add(f)
+        self.selected_files = [
+            f for f in self.selected_files
+            if (f.resolve() if hasattr(f, "resolve") else f) in cand_set
+        ]
         self._update_display()
 
     def set_selected_files(self, files: list[Path]) -> None:
-        self.selected_files = list(files)
+        self.selected_files = _dedup_paths(files)
         self._update_display()
 
     def get_selected_files(self) -> list[Path]:
-        return list(self.selected_files)
+        return _dedup_paths(self.selected_files)
 
     def _open_selector(self) -> None:
         dlg = FileListSelectDialog(
@@ -1416,10 +1452,8 @@ class FileSelectField(QWidget):
         )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             # Sync candidate_files if custom files were browsed
-            for f in dlg.all_files:
-                if f not in self.candidate_files:
-                    self.candidate_files.append(f)
-            self.selected_files = dlg.get_selected_files()
+            self.candidate_files = _dedup_paths(self.candidate_files + dlg.all_files)
+            self.selected_files = _dedup_paths(dlg.get_selected_files())
             self._update_display()
             self.selection_changed.emit()
 
@@ -1740,10 +1774,14 @@ class UnpackImgDialog(BaseOperationDialog):
         self.add_section_header("Select IMG files to unpack")
         img_candidates = []
         if proj:
-            img_candidates = [
-                f for f in (list(proj.images.glob("*.img")) + list(proj.project_dir.glob("*.img")))
-                if f.name != "super.img"
-            ]
+            raw_cands: list[Path] = []
+            for d in (proj.images, proj.project_dir, proj.io_dir):
+                if d.is_dir():
+                    raw_cands.extend(d.glob("*.img"))
+            img_candidates = _dedup_paths([
+                f for f in raw_cands
+                if f.name.lower() != "super.img" and not f.name.startswith(".")
+            ])
         self.file_picker = FileSelectField(
             candidate_files=img_candidates,
             subtitle="Select partition img files under project path",
@@ -2047,7 +2085,15 @@ class UnpackZstdDialog(BaseOperationDialog):
         self.add_section_header("Select ZSTD files to unpack")
         zst_candidates = []
         if proj:
-            zst_candidates = list(proj.images.glob("*.zst")) + list(proj.images.glob("*.zstd")) + list(proj.project_dir.glob("*.zst"))
+            raw_cands: list[Path] = []
+            for d in (proj.images, proj.project_dir, proj.io_dir):
+                if d.is_dir():
+                    raw_cands.extend(d.glob("*.zst"))
+                    raw_cands.extend(d.glob("*.zstd"))
+            zst_candidates = _dedup_paths([
+                f for f in raw_cands
+                if not f.name.startswith(".")
+            ])
         self.file_picker = FileSelectField(
             candidate_files=zst_candidates,
             subtitle="Select zstd files under project path",
@@ -2074,7 +2120,14 @@ class RepackZstdDialog(BaseOperationDialog):
         self.add_section_header("Select files to repack")
         candidates = []
         if proj:
-            candidates = [f for f in proj.images.glob("*.img") if f.name != "super.img"]
+            raw_cands: list[Path] = []
+            for d in (proj.images, proj.project_dir, proj.io_dir):
+                if d.is_dir():
+                    raw_cands.extend(d.glob("*.img"))
+            candidates = _dedup_paths([
+                f for f in raw_cands
+                if f.name.lower() != "super.img" and not f.name.startswith(".")
+            ])
         self.file_picker = FileSelectField(
             candidate_files=candidates,
             subtitle="Select files to repack with zstd under project path",
@@ -2314,16 +2367,14 @@ class RepackSuperDialog(BaseOperationDialog):
         self.add_section_header("Select IMG files to pack:")
         candidates = []
         if proj:
-            raw_cands = (
-                list(proj.images.glob("*.img")) + list(proj.project_dir.glob("*.img"))
-            )
-            seen = set()
-            for f in raw_cands:
-                if f.name.lower() != "super.img" and not f.name.startswith("."):
-                    res = f.resolve()
-                    if res not in seen:
-                        seen.add(res)
-                        candidates.append(f)
+            raw_cands: list[Path] = []
+            for d in (proj.images, proj.project_dir, proj.io_dir):
+                if d.is_dir():
+                    raw_cands.extend(d.glob("*.img"))
+            candidates = _dedup_paths([
+                f for f in raw_cands
+                if f.name.lower() != "super.img" and not f.name.startswith(".")
+            ])
 
         self.file_picker = FileSelectField(
             candidate_files=candidates,
@@ -2361,13 +2412,11 @@ class ImgSimgDialog(BaseOperationDialog):
         self.add_section_header("Select IMG files to convert:")
         candidates = []
         if proj:
-            raw_cands = list(proj.images.glob("*.img")) + list(proj.io_dir.glob("*.img"))
-            seen = set()
-            for f in raw_cands:
-                res = f.resolve()
-                if res not in seen:
-                    seen.add(res)
-                    candidates.append(f)
+            raw_cands: list[Path] = []
+            for d in (proj.images, proj.project_dir, proj.io_dir):
+                if d.is_dir():
+                    raw_cands.extend(d.glob("*.img"))
+            candidates = _dedup_paths([f for f in raw_cands if not f.name.startswith(".")])
         self.file_picker = FileSelectField(
             candidate_files=candidates,
             subtitle="Convert between raw img and sparse simg automatically",
@@ -2495,9 +2544,11 @@ class PatchVbmetaDialog(BaseOperationDialog):
         self.add_section_header("Select vbmeta IMG files to patch")
         candidates = []
         if proj:
-            candidates = list(proj.images.glob("*vbmeta*.img")) + list(proj.project_dir.glob("*vbmeta*.img"))
+            candidates = _dedup_paths(
+                list(proj.images.glob("*vbmeta*.img")) + list(proj.project_dir.glob("*vbmeta*.img"))
+            )
             if not candidates:
-                candidates = list(proj.images.glob("*.img"))
+                candidates = _dedup_paths(proj.images.glob("*.img"))
         self.file_picker = FileSelectField(
             candidate_files=candidates,
             subtitle="Select vbmeta image files under project path",
