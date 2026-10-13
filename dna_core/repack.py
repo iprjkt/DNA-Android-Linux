@@ -63,7 +63,8 @@ def repack_image(
     if out_img:
         destination = Path(out_img).resolve()
     elif proj:
-        destination = proj.paths.out_dir / f"{part_name}.img"
+        p_paths = getattr(proj, "paths", proj)
+        destination = p_paths.out_dir / f"{part_name}.img"
     else:
         destination = src.parent / f"{part_name}.img"
 
@@ -77,7 +78,14 @@ def repack_image(
     # Locate or generate fs_config and file_contexts
     config_dir_candidates: list[Path] = []
     if proj:
-        config_dir_candidates.append(proj.paths.config_dir)
+        p_paths = getattr(proj, "paths", proj)
+        cfg_dir = getattr(p_paths, "config_dir", None)
+        if callable(cfg_dir):
+            cfg_dir = cfg_dir()
+        if cfg_dir and isinstance(cfg_dir, Path):
+            config_dir_candidates.append(cfg_dir)
+        elif hasattr(p_paths, "config"):
+            config_dir_candidates.append(p_paths.config)
     config_dir_candidates.append(src.parent / "config")
     if src.parent.name == "unpacked":
         config_dir_candidates.append(src.parent.parent / "config")

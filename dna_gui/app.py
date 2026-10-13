@@ -621,7 +621,7 @@ class MainWindow(QMainWindow):
                         compress_erofs=erofs_algo,
                         erofs_level=erofs_level,
                         brotli_level=brotli_level,
-                        project=self._active_project,
+                        project=proj,
                     )
 
             first_name = selected[0].name
