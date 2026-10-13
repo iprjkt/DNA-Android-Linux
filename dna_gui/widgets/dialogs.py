@@ -945,25 +945,29 @@ def get_repack_partition_candidates(proj: ProjectPaths | None, mode: str = "all"
         "unpacked",
         "images",
         "rom",
+        "debloat_backup",
     }
 
-    # 1. Unpacked partition directories directly under work_dir (e.g. /data/DNA/<proj>/product/)
-    if mode in ("all", "folder") and proj.work_dir.is_dir():
-        for d in sorted(proj.work_dir.iterdir()):
-            if d.is_dir() and not d.name.startswith(".") and d.name.lower() not in EXCLUDED_DIRS:
-                resolved = d.resolve()
-                if resolved not in seen:
-                    candidates.append(d)
-                    seen.add(resolved)
-
-    # 2. Partition directories under legacy unpacked folder (e.g. <work_dir>/unpacked/<part>/)
-    if mode in ("all", "folder") and (proj.work_dir / "unpacked").is_dir():
-        for d in sorted((proj.work_dir / "unpacked").iterdir()):
-            if d.is_dir() and not d.name.startswith(".") and d.name.lower() not in EXCLUDED_DIRS:
-                resolved = d.resolve()
-                if resolved not in seen:
-                    candidates.append(d)
-                    seen.add(resolved)
+    # 1-2. Unpacked partition directories: directly under work_dir (e.g. <work>/product/),
+    # the project's unpacked dir, and the legacy <work_dir>/unpacked/<part>/ layout.
+    if mode in ("all", "folder"):
+        roots: list[Path] = [proj.work_dir, proj.work_dir / "unpacked"]
+        unpacked_root = getattr(proj, "unpacked", None)
+        if unpacked_root is not None:
+            roots.insert(1, unpacked_root)
+        for root in _dedup_paths(roots):
+            if not root.is_dir():
+                continue
+            for d in sorted(root.iterdir()):
+                if (
+                    d.is_dir()
+                    and not d.name.startswith(".")
+                    and d.name.lower() not in EXCLUDED_DIRS
+                ):
+                    resolved = d.resolve()
+                    if resolved not in seen:
+                        candidates.append(d)
+                        seen.add(resolved)
 
     # 3. Partition image files under images_dir (excluding super.img)
     if mode in ("all", "img") and proj.images.is_dir():
@@ -2157,11 +2161,13 @@ class RepackSingleImgDialog(BaseOperationDialog):
         self.setFixedSize(480, 720)
         self.proj = proj
 
-        # Detect candidate partition targets from workspace
+        # Detect candidate partition targets from workspace.
+        # Unpacked folders are the normal repack source (after modding), so prefer them
+        # whenever any exist; fall back to IMG only when nothing has been unpacked yet.
         img_candidates = get_repack_partition_candidates(proj, mode="img")
         folder_candidates = get_repack_partition_candidates(proj, mode="folder")
-        initial_mode = "Folder" if (not img_candidates and folder_candidates) else "IMG"
-        initial_candidates = folder_candidates if initial_mode == "Folder" else (img_candidates or folder_candidates)
+        initial_mode = "Folder" if folder_candidates else "IMG"
+        initial_candidates = folder_candidates if initial_mode == "Folder" else img_candidates
 
         # 1. Target selector (Card matching top item in Screenshot_2026-10-11-01-29-46-660)
         self.file_picker = FileSelectField(

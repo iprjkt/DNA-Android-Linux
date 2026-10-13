@@ -434,7 +434,8 @@ class TestDnaGui(unittest.TestCase):
 
             # RepackSingleImgDialog switching between IMG and Folder
             dlg = RepackSingleImgDialog(proj=p)
-            self.assertGreaterEqual(len(dlg.file_picker.candidate_files), 1)
+            self.assertEqual(dlg.combo_from.currentText(), "Folder")
+            self.assertIn("custom_sys", [f.name for f in dlg.file_picker.candidate_files])
 
             dlg.combo_from.setCurrentText("Folder")
             folder_files = [f.name for f in dlg.file_picker.candidate_files]
