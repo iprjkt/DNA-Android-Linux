@@ -136,8 +136,21 @@ class PropFile:
         return target
 
 
+try:
+    from dna_core import dna_core_cpp
+    _HAVE_CPP = True
+except ImportError:
+    _HAVE_CPP = False
+
+
 def find_prop_files(target_dir: Path | str) -> List[Path]:
     """Find all Android property files (build.prop, default.prop) in a directory tree."""
+    if _HAVE_CPP:
+        try:
+            return [Path(p) for p in dna_core_cpp.find_prop_files(str(target_dir))]
+        except Exception:
+            pass
+
     root = Path(target_dir)
     if not root.is_dir():
         return []

@@ -43,8 +43,22 @@ class ImageInfo:
     description: str = ""
 
 
+try:
+    from dna_core import dna_core_cpp
+    _HAVE_CPP = True
+except ImportError:
+    _HAVE_CPP = False
+
+
 def detect_image_type(file_path: Path | str) -> ImageType:
     """Examine header magic bytes to accurately detect the image/archive type."""
+    if _HAVE_CPP:
+        try:
+            cpp_t = dna_core_cpp.detect_image_type(str(file_path))
+            return ImageType[cpp_t.name]
+        except Exception:
+            pass
+
     p = Path(file_path)
     if not p.is_file():
         return ImageType.UNKNOWN
