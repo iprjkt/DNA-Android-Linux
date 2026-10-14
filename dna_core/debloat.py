@@ -36,7 +36,9 @@ class DebloatResult:
 
 def get_default_debloat_dir() -> Path:
     """Return the repository's data/debloat directory."""
-    return Path(__file__).resolve().parent.parent / "data" / "debloat"
+    from dna_core.paths import get_data_dir
+
+    return get_data_dir() / "debloat"
 
 
 def load_debloat_preset(preset_ref: str | Path) -> DebloatPreset:

@@ -23,6 +23,10 @@ optdepends=(
     'f2fs-tools: Flash-Friendly File System inspection'
 )
 makedepends=(
+    'cmake'
+    'ninja'
+    'gcc'
+    'python-pybind11'
     'python-build'
     'python-installer'
     'python-hatchling'
@@ -32,13 +36,29 @@ source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {
-    cd "$srcdir/$pkgname-$pkgver" 2>/dev/null || cd "$srcdir/DNA-Android-Linux" 2>/dev/null || cd "$startdir"
+    cd "$srcdir/dna_linux-$pkgver" 2>/dev/null || cd "$srcdir/$pkgname-$pkgver" 2>/dev/null || cd "$srcdir/DNA-Android-Linux" 2>/dev/null || cd "$startdir"
+    # Build native C++ backend engine
+    cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --parallel
     python -m build --wheel --no-isolation
 }
 
 package() {
-    cd "$srcdir/$pkgname-$pkgver" 2>/dev/null || cd "$srcdir/DNA-Android-Linux" 2>/dev/null || cd "$startdir"
+    cd "$srcdir/dna_linux-$pkgver" 2>/dev/null || cd "$srcdir/$pkgname-$pkgver" 2>/dev/null || cd "$startdir"
     python -m installer --destdir="$pkgdir" dist/*.whl
+
+    # Native CLI executable
+    if [ -f build/dna_native_cli ]; then
+        install -Dm755 build/dna_native_cli "$pkgdir/usr/bin/dna-native"
+    fi
+
+    # Native Python extension module
+    py_ver=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    for so_file in dna_core/dna_core_cpp*.so; do
+        if [ -f "$so_file" ]; then
+            install -Dm755 "$so_file" "$pkgdir/usr/lib/python${py_ver}/site-packages/dna_core/$(basename "$so_file")"
+        fi
+    done
 
     # Desktop entry & Icon
     install -Dm644 data/dna.desktop "$pkgdir/usr/share/applications/dna.desktop"
@@ -62,6 +82,6 @@ package() {
     fi
 
     # Bundled data assets
-    install -d "$pkgdir/usr/share/dna-linux"
-    cp -r data/* "$pkgdir/usr/share/dna-linux/"
+    install -d "$pkgdir/usr/share/dna-linux/data"
+    cp -r data/* "$pkgdir/usr/share/dna-linux/data/"
 }

@@ -307,8 +307,10 @@ def patch_safetycore(
     if placeholder_apk is not None:
         src_apk = Path(placeholder_apk)
     else:
-        # Check repo bundled location
-        src_apk = Path(__file__).resolve().parent.parent / "data" / "safetycore" / "Safetycore.apk"
+        # Check bundled or system installed location
+        from dna_core.paths import get_data_dir
+
+        src_apk = get_data_dir() / "safetycore" / "Safetycore.apk"
 
     if not src_apk.is_file():
         print(f"Error: Safetycore placeholder APK not found at {src_apk}\n")
@@ -534,7 +536,9 @@ def patch_disable_xiaomi_services(
     if config_path is not None:
         cfg_file = Path(config_path)
     else:
-        cfg_file = Path(__file__).resolve().parent.parent / "data" / "patches" / "xiaomi_services.toml"
+        from dna_core.paths import get_data_dir
+
+        cfg_file = get_data_dir() / "patches" / "xiaomi_services.toml"
 
     if not cfg_file.is_file():
         print(f"Error: Xiaomi services configuration not found at {cfg_file}\n")
