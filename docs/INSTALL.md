@@ -59,7 +59,7 @@ git clone https://github.com/iprjkt/DNA-Linux.git
 cd DNA-Linux
 ./packaging/debian/build_deb.sh
 
-sudo apt install ./dist/dna-linux_0.1.0_all.deb
+sudo apt install ./dist/dna-linux_0.1.0_amd64.deb
 ```
 
 ### Manual Setup via APT
@@ -75,7 +75,24 @@ pip install -e .[gui]
 
 ---
 
-## 4. Verification
+## 4. Portable Standalone Bundle (Any Linux x86_64)
+
+For users on Fedora, openSUSE, Alpine, or systems without root privileges:
+```bash
+tar -xzf dist/dna-linux-v0.1.0-linux-x86_64.tar.gz
+cd dna-linux-v0.1.0-linux-x86_64
+
+# Direct execution without installation:
+./dna-gui         # Launch Desktop GUI
+./dna doctor      # Check tool dependencies
+
+# Optional system-wide installation:
+sudo ./install.sh # Or ./install.sh --user
+```
+
+---
+
+## 5. Verification
 
 Run the environment health check to verify all tools are discovered:
 
@@ -108,7 +125,7 @@ Output:
 
 ---
 
-## 5. Launching User Interfaces
+## 6. Launching User Interfaces
 
 DNA-Linux provides three interfaces:
 
