@@ -68,6 +68,38 @@ def get_global_config_dir() -> Path:
     return (Path.home() / ".config" / "dna-linux").resolve()
 
 
+def get_data_dir() -> Path:
+    """Locate the bundled or installed data directory (presets, icons, placeholders)."""
+    # 1. Environment override
+    env_data = os.environ.get("DNA_DATA_DIR")
+    if env_data:
+        p = Path(env_data).expanduser().resolve()
+        if p.is_dir():
+            return p
+
+    # 2. Local source tree or /usr/lib/dna-linux/data
+    repo_data = Path(__file__).resolve().parent.parent / "data"
+    if repo_data.is_dir():
+        return repo_data
+
+    # 3. System shared directories
+    import sys
+
+    for cand in (
+        Path(sys.prefix) / "share" / "dna-linux" / "data",
+        Path(sys.prefix) / "share" / "dna-linux",
+        Path("/usr/local/share/dna-linux/data"),
+        Path("/usr/local/share/dna-linux"),
+        Path("/usr/share/dna-linux/data"),
+        Path("/usr/share/dna-linux"),
+        Path.home() / ".local" / "share" / "dna-linux",
+    ):
+        if cand.is_dir():
+            return cand.resolve()
+
+    return repo_data
+
+
 def normalize_project_name(raw_name: str) -> str:
     """Normalize and validate a project name (no path separators, non-empty)."""
     name = raw_name.strip()

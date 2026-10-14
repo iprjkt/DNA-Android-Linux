@@ -4,9 +4,15 @@ set -euo pipefail
 
 PACKAGE_NAME="dna-linux"
 VERSION="0.1.0"
-ARCH="all"
+ARCH="amd64"
 BUILD_DIR="$(mktemp -d -t dna-deb-XXXXXX)"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Ensure native C++ backend is compiled
+if [ ! -f "${REPO_DIR}/build/dna_native_cli" ] || [ ! -f "${REPO_DIR}/dna_core"/dna_core_cpp*.so ]; then
+    echo ">> Building native C++ engine before packaging..."
+    "${REPO_DIR}/build_backend.sh"
+fi
 
 echo "=== Building Debian Package: ${PACKAGE_NAME}_${VERSION}_${ARCH}.deb ==="
 
@@ -14,6 +20,7 @@ DEB_ROOT="${BUILD_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}"
 mkdir -p "${DEB_ROOT}/DEBIAN"
 mkdir -p "${DEB_ROOT}/usr/bin"
 mkdir -p "${DEB_ROOT}/usr/lib/dna-linux"
+mkdir -p "${DEB_ROOT}/usr/share/dna-linux"
 mkdir -p "${DEB_ROOT}/usr/share/applications"
 mkdir -p "${DEB_ROOT}/usr/share/icons/hicolor/scalable/apps"
 mkdir -p "${DEB_ROOT}/usr/share/man/man1"
@@ -27,6 +34,7 @@ cp -r "${REPO_DIR}/dna_cli" "${DEB_ROOT}/usr/lib/dna-linux/"
 cp -r "${REPO_DIR}/dna_tui" "${DEB_ROOT}/usr/lib/dna-linux/"
 cp -r "${REPO_DIR}/dna_gui" "${DEB_ROOT}/usr/lib/dna-linux/"
 cp -r "${REPO_DIR}/data" "${DEB_ROOT}/usr/lib/dna-linux/"
+cp -r "${REPO_DIR}/data" "${DEB_ROOT}/usr/share/dna-linux/"
 
 # 2. Wrapper Scripts
 cat << 'EOF' > "${DEB_ROOT}/usr/bin/dna"
@@ -48,6 +56,11 @@ if __name__ == "__main__":
     sys.exit(start_gui())
 EOF
 chmod 755 "${DEB_ROOT}/usr/bin/dna-gui"
+
+if [ -f "${REPO_DIR}/build/dna_native_cli" ]; then
+    cp "${REPO_DIR}/build/dna_native_cli" "${DEB_ROOT}/usr/bin/dna-native"
+    chmod 755 "${DEB_ROOT}/usr/bin/dna-native"
+fi
 
 # 3. Desktop Entry & Icon
 cp "${REPO_DIR}/data/dna.desktop" "${DEB_ROOT}/usr/share/applications/"
@@ -115,9 +128,17 @@ mkdir -p "${OUT_DIR}"
 
 if command -v dpkg-deb >/dev/null 2>&1; then
     dpkg-deb --build --root-owner-group "${DEB_ROOT}" "${OUT_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
-    echo "✓ Built package: ${OUT_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
+    echo "✓ Built Debian package with dpkg-deb: ${OUT_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
+elif command -v ar >/dev/null 2>&1; then
+    echo ">> dpkg-deb not found. Creating standard Debian .deb using ar + tar..."
+    DEB_OUT="${OUT_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
+    echo "2.0" > "${BUILD_DIR}/debian-binary"
+    tar --numeric-owner --owner=0 --group=0 -czf "${BUILD_DIR}/control.tar.gz" -C "${DEB_ROOT}/DEBIAN" .
+    tar --numeric-owner --owner=0 --group=0 --exclude="./DEBIAN" -czf "${BUILD_DIR}/data.tar.gz" -C "${DEB_ROOT}" .
+    ar -rcs "${DEB_OUT}" "${BUILD_DIR}/debian-binary" "${BUILD_DIR}/control.tar.gz" "${BUILD_DIR}/data.tar.gz"
+    echo "✓ Built Debian package with ar: ${DEB_OUT}"
 else
-    echo "dpkg-deb not found. Root prepared at: ${DEB_ROOT}"
+    echo "Neither dpkg-deb nor ar found. Root prepared at: ${DEB_ROOT}"
 fi
 
 rm -rf "${BUILD_DIR}"

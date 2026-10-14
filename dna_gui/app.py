@@ -108,8 +108,11 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(DARK_THEME_QSS)
 
         # Set original DNA-Android logo
-        icon_png = Path(__file__).resolve().parent.parent / "data" / "icons" / "dna.png"
-        icon_svg = Path(__file__).resolve().parent.parent / "data" / "icons" / "dna.svg"
+        from dna_core.paths import get_data_dir
+
+        data_dir = get_data_dir()
+        icon_png = data_dir / "icons" / "dna.png"
+        icon_svg = data_dir / "icons" / "dna.svg"
         if icon_png.exists():
             self.setWindowIcon(QIcon(str(icon_png)))
         elif icon_svg.exists():
