@@ -30,8 +30,8 @@ To perform full unpack/repack operations, ensure the standard Android and filesy
 
 ### Using PKGBUILD (Recommended)
 ```bash
-git clone https://github.com/iprjkt/DNA-Linux.git
-cd DNA-Linux/packaging/arch
+git clone https://github.com/iprjkt/DNA-Android-Linux.git
+cd DNA-Android-Linux/packaging/arch
 makepkg -si
 ```
 
@@ -41,8 +41,8 @@ makepkg -si
 sudo pacman -S android-tools e2fsprogs erofs-utils brotli zstd python-pyqt6 python-click python-rich jdk-openjdk
 
 # 2. Clone and link launcher
-git clone https://github.com/iprjkt/DNA-Linux.git
-cd DNA-Linux
+git clone https://github.com/iprjkt/DNA-Android-Linux.git
+cd DNA-Android-Linux
 pip install -e .[gui]
 
 # Or run directly via bin/
@@ -55,8 +55,8 @@ pip install -e .[gui]
 
 ### Building and Installing the `.deb` Package
 ```bash
-git clone https://github.com/iprjkt/DNA-Linux.git
-cd DNA-Linux
+git clone https://github.com/iprjkt/DNA-Android-Linux.git
+cd DNA-Android-Linux
 ./packaging/debian/build_deb.sh
 
 sudo apt install ./dist/dna-linux_0.1.0_amd64.deb
@@ -68,8 +68,8 @@ sudo apt update
 sudo apt install -y python3 python3-pip python3-click python3-rich python3-pyqt6 \
     android-sdk-platform-tools e2fsprogs erofs-utils brotli zstd openjdk-21-jre
 
-git clone https://github.com/iprjkt/DNA-Linux.git
-cd DNA-Linux
+git clone https://github.com/iprjkt/DNA-Android-Linux.git
+cd DNA-Android-Linux
 pip install -e .[gui]
 ```
 

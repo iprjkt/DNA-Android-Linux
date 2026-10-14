@@ -1,7 +1,7 @@
 # DNA-Linux — Native Android ROM Toolkit
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64-orange.svg)](https://github.com/iprjkt/DNA-Linux)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64-orange.svg)](https://github.com/iprjkt/DNA-Android-Linux)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://www.python.org/)
 [![C++](https://img.shields.io/badge/C%2B%2B-20%20(Native%20Engine)-blueviolet.svg)](cpp/)
 [![Tests](https://img.shields.io/badge/Tests-120%2F120%20Passing-brightgreen.svg)](tests/)
