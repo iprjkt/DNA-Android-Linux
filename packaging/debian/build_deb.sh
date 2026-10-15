@@ -3,7 +3,7 @@
 set -euo pipefail
 
 PACKAGE_NAME="dna-linux"
-VERSION="0.1.0"
+VERSION="0.1.2"
 ARCH="amd64"
 BUILD_DIR="$(mktemp -d -t dna-deb-XXXXXX)"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

@@ -63,7 +63,7 @@ Pre-built release packages are located in [`dist/`](file:///mnt/detalmick/DNA-An
 ### 1. Arch Linux (`.pkg.tar.zst`)
 Directly install the native Arch package using `pacman`:
 ```bash
-sudo pacman -U dist/dna-linux-0.1.0-1-x86_64.pkg.tar.zst
+sudo pacman -U dist/dna-linux-0.1.2-1-x86_64.pkg.tar.zst
 ```
 *Or build and install using `makepkg`:*
 ```bash
@@ -74,15 +74,15 @@ makepkg -si
 ### 2. Debian & Ubuntu (`.deb`)
 Install the standard Debian package (amd64) using `dpkg` or `apt`:
 ```bash
-sudo dpkg -i dist/dna-linux_0.1.0_amd64.deb
+sudo dpkg -i dist/dna-linux_0.1.2_amd64.deb
 sudo apt-get install -f # Install any missing dependencies if needed
 ```
 
 ### 3. Portable Standalone Bundle (Run Anywhere)
 No root installation required. Extract and run directly on any x86_64 Linux distribution:
 ```bash
-tar -xzf dist/dna-linux-v0.1.0-linux-x86_64.tar.gz
-cd dna-linux-v0.1.0-linux-x86_64
+tar -xzf dist/dna-linux-v0.1.2-linux-x86_64.tar.gz
+cd dna-linux-v0.1.2-linux-x86_64
 
 # Run Desktop GUI
 ./dna-gui
@@ -101,7 +101,7 @@ sudo ./install.sh        # System-wide installation
 ### 4. Python Wheel & PIP
 Install into your active Python environment:
 ```bash
-pip install dist/dna_linux-0.1.0-py3-none-any.whl[gui]
+pip install dist/dna_linux-0.1.2-py3-none-any.whl[gui]
 ```
 
 ---

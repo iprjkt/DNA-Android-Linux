@@ -9,21 +9,23 @@ mkdir -p "${OUT_DIR}"
 
 echo "=== Building Arch Linux Package ==="
 
+VERSION="$(grep '^pkgver=' "${ARCH_DIR}/PKGBUILD" | cut -d= -f2)"
+
 # Build source distribution tarball if not already present
-if [ ! -f "${OUT_DIR}/dna_linux-0.1.0.tar.gz" ]; then
+if [ ! -f "${OUT_DIR}/dna_linux-${VERSION}.tar.gz" ]; then
     echo ">> Generating sdist tarball..."
     python3 -m build --sdist --no-isolation "${REPO_DIR}"
 fi
 
 # Supply source archive for makepkg
-cp "${OUT_DIR}/dna_linux-0.1.0.tar.gz" "${ARCH_DIR}/dna-linux-0.1.0.tar.gz"
+cp "${OUT_DIR}/dna_linux-${VERSION}.tar.gz" "${ARCH_DIR}/dna-linux-${VERSION}.tar.gz"
 
 cd "${ARCH_DIR}"
 makepkg -f -d -C
 
 # Move generated package to dist/
-mv "${ARCH_DIR}"/dna-linux-0.1.0-*.pkg.tar.zst "${OUT_DIR}/"
-rm -f "${ARCH_DIR}/dna-linux-0.1.0.tar.gz"
+mv "${ARCH_DIR}"/dna-linux-${VERSION}-*.pkg.tar.zst "${OUT_DIR}/"
+rm -f "${ARCH_DIR}/dna-linux-${VERSION}.tar.gz"
 rm -rf "${ARCH_DIR}/pkg" "${ARCH_DIR}/src"
 
 echo "✓ Arch Linux package created in ${OUT_DIR}"

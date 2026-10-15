@@ -80,7 +80,7 @@ git clone https://github.com/iprjkt/DNA-Android-Linux.git
 cd DNA-Android-Linux
 ./packaging/debian/build_deb.sh
 
-sudo apt install ./dist/dna-linux_0.1.0_amd64.deb
+sudo apt install ./dist/dna-linux_0.1.2_amd64.deb
 ```
 
 ### Manual Setup via APT
@@ -100,8 +100,8 @@ pip install -e .[gui]
 
 For users on Fedora, openSUSE, Alpine, or systems without root privileges:
 ```bash
-tar -xzf dist/dna-linux-v0.1.0-linux-x86_64.tar.gz
-cd dna-linux-v0.1.0-linux-x86_64
+tar -xzf dist/dna-linux-v0.1.2-linux-x86_64.tar.gz
+cd dna-linux-v0.1.2-linux-x86_64
 
 # Direct execution without installation:
 ./dna-gui         # Launch Desktop GUI

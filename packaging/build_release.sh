@@ -11,7 +11,7 @@
 # ==============================================================================
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.1.2"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${REPO_DIR}/dist"
 PORTABLE_DIR="$(mktemp -d -t dna-portable-XXXXXX)"

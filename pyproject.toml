@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dna-linux"
-version = "0.1.0"
+version = "0.1.2"
 description = "Native Linux (x86_64) Android ROM unpack, repack, and patch toolkit"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }

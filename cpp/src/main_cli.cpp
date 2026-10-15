@@ -13,7 +13,7 @@
 using namespace dna;
 
 void print_help() {
-    std::cout << "DNA-Android-Linux Native C++ Engine v0.1.0\n"
+    std::cout << "DNA-Android-Linux Native C++ Engine v0.1.2\n"
               << "Usage: dna_native_cli <command> [options]\n\n"
               << "Commands:\n"
               << "  detect <path>                     Detect filesystem/image format\n"

@@ -1,6 +1,6 @@
 # Maintainer: iprjkt <iprjkt@users.noreply.github.com>
 pkgname=dna-linux
-pkgver=0.1.0
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Native Linux (x86_64) Android ROM unpack, repack, format conversion, and patch toolkit"
 arch=('x86_64')
