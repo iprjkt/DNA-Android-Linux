@@ -48,6 +48,13 @@ from dna_core.project import (
     list_projects,
     select_project,
 )
+from dna_core.setup import (
+    get_setup_tools_status,
+    install_apktool,
+    install_java,
+    install_payload_dumper_go,
+    setup_all,
+)
 from dna_core.tools import run_doctor
 from dna_core.unpack import SuperPartitionInfo, get_super_partitions_info
 
@@ -835,12 +842,13 @@ class DoctorDialog(QDialog):
 
         # Tools Table
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Tool", "Status", "Version / Details", "Required By"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Tool", "Status", "Source", "Version / Details", "Category"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -852,6 +860,14 @@ class DoctorDialog(QDialog):
         refresh_btn.clicked.connect(self.run_checks)
         btn_layout.addWidget(refresh_btn)
 
+        setup_btn = QPushButton("⚙ Setup External Tools (Apktool, Payload Dumper, Java)")
+        setup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        setup_btn.setStyleSheet(
+            "background: #0284c7; color: white; border-radius: 6px; padding: 6px 14px; font-weight: bold;"
+        )
+        setup_btn.clicked.connect(self._open_setup)
+        btn_layout.addWidget(setup_btn)
+
         btn_layout.addStretch(1)
 
         close_btn = QPushButton("Close")
@@ -861,6 +877,11 @@ class DoctorDialog(QDialog):
 
         layout.addLayout(btn_layout)
 
+        self.run_checks()
+
+    def _open_setup(self) -> None:
+        dlg = SetupToolsDialog(self)
+        dlg.exec()
         self.run_checks()
 
     def run_checks(self) -> None:
@@ -874,7 +895,8 @@ class DoctorDialog(QDialog):
             name = t.get("name", "")
             found = t.get("found", False)
             version = t.get("version") or t.get("path") or "Not installed"
-            required_by = t.get("required_by", "")
+            category = t.get("category", "")
+            source = t.get("source", "system")
 
             item_name = QTableWidgetItem(name)
             item_name.setForeground(Qt.GlobalColor.white)
@@ -889,13 +911,30 @@ class DoctorDialog(QDialog):
                 item_status.setForeground(Qt.GlobalColor.red)
             self.table.setItem(row, 1, item_status)
 
+            if source == "bundled":
+                item_src = QTableWidgetItem("Bundled")
+                item_src.setForeground(QColor("#38bdf8"))
+            elif source == "setup":
+                item_src = QTableWidgetItem("Setup")
+                item_src.setForeground(QColor("#e879f9"))
+            elif source == "override":
+                item_src = QTableWidgetItem("Override")
+                item_src.setForeground(QColor("#facc15"))
+            elif found:
+                item_src = QTableWidgetItem("System")
+                item_src.setForeground(QColor("#4ade80"))
+            else:
+                item_src = QTableWidgetItem("Missing")
+                item_src.setForeground(QColor("#94a3b8"))
+            self.table.setItem(row, 2, item_src)
+
             item_ver = QTableWidgetItem(str(version))
             item_ver.setForeground(Qt.GlobalColor.lightGray)
-            self.table.setItem(row, 2, item_ver)
+            self.table.setItem(row, 3, item_ver)
 
-            item_req = QTableWidgetItem(required_by)
-            item_req.setForeground(Qt.GlobalColor.gray)
-            self.table.setItem(row, 3, item_req)
+            item_cat = QTableWidgetItem(category)
+            item_cat.setForeground(Qt.GlobalColor.gray)
+            self.table.setItem(row, 4, item_cat)
 
         if missing_count == 0:
             self.summary_badge.setText(f"All {len(tools)} Tools Ready")
@@ -907,6 +946,155 @@ class DoctorDialog(QDialog):
             self.summary_badge.setStyleSheet(
                 "background: #7f1d1d; color: #fca5a5; padding: 4px 10px; border-radius: 6px; font-weight: bold;"
             )
+
+
+class SetupToolsDialog(QDialog):
+    """Setup mode dialog for downloading and configuring external tools."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("DNA-Linux Setup Mode — External Tools")
+        self.setMinimumSize(720, 460)
+        self.setStyleSheet(DARK_THEME_QSS)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
+
+        # Header
+        header_layout = QHBoxLayout()
+        header_lbl = QLabel("External Tools Setup & Package Manager")
+        header_font = QFont()
+        header_font.setPointSize(13)
+        header_font.setBold(True)
+        header_lbl.setFont(header_font)
+        header_lbl.setStyleSheet("color: #ffffff;")
+        header_layout.addWidget(header_lbl)
+        header_layout.addStretch(1)
+
+        summary_badge = QLabel("Setup Mode")
+        summary_badge.setStyleSheet(
+            "background: #1e1b4b; color: #a5b4fc; padding: 4px 10px; border-radius: 6px; font-weight: bold;"
+        )
+        header_layout.addWidget(summary_badge)
+        layout.addLayout(header_layout)
+
+        desc = QLabel(
+            "Core partition unpack & repack binaries (e2fsdroid, lpunpack, lpmake, fsck.erofs, mkfs.erofs, etc.) "
+            "are bundled directly inside the DNA package. Heavy and specialized tools below can be set up automatically on demand."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        layout.addWidget(desc)
+
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["Tool", "Status", "Location / Details", "Action"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        layout.addWidget(self.table, stretch=1)
+
+        # Status log line
+        self.status_lbl = QLabel("Ready")
+        self.status_lbl.setStyleSheet("color: #38bdf8; font-size: 12px; font-weight: bold;")
+        layout.addWidget(self.status_lbl)
+
+        # Bottom Buttons
+        btn_layout = QHBoxLayout()
+        self.install_all_btn = QPushButton("Install / Update All External Tools")
+        self.install_all_btn.setObjectName("btn_primary")
+        self.install_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.install_all_btn.clicked.connect(self._install_all)
+        btn_layout.addWidget(self.install_all_btn)
+
+        btn_layout.addStretch(1)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(close_btn)
+
+        layout.addLayout(btn_layout)
+
+        self.refresh()
+
+    def refresh(self) -> None:
+        tools_dict = get_setup_tools_status()
+        tool_order = ["apktool", "payload-dumper-go", "java"]
+        self.table.setRowCount(len(tool_order))
+
+        for row, key in enumerate(tool_order):
+            info = tools_dict.get(key, {"name": key, "installed": False, "source": "missing"})
+            name = info.get("name", key)
+            installed = info.get("installed", False)
+            src = info.get("source", "missing")
+            ver = info.get("version") or info.get("path") or "Not installed"
+
+            item_name = QTableWidgetItem(name)
+            item_name.setForeground(Qt.GlobalColor.white)
+            self.table.setItem(row, 0, item_name)
+
+            if installed:
+                status_text = f"✓ Ready ({src})"
+                item_status = QTableWidgetItem(status_text)
+                item_status.setForeground(Qt.GlobalColor.green)
+            else:
+                item_status = QTableWidgetItem("! Not Setup")
+                item_status.setForeground(Qt.GlobalColor.yellow)
+            self.table.setItem(row, 1, item_status)
+
+            item_loc = QTableWidgetItem(str(ver))
+            item_loc.setForeground(Qt.GlobalColor.lightGray)
+            self.table.setItem(row, 2, item_loc)
+
+            # Action button
+            act_btn = QPushButton("Setup / Update" if installed else "Install")
+            act_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            act_btn.setStyleSheet(
+                "background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; border-radius: 4px; padding: 3px 8px;"
+            )
+            if key == "apktool":
+                act_btn.clicked.connect(self._install_apktool)
+            elif key == "payload-dumper-go":
+                act_btn.clicked.connect(self._install_payload_dumper)
+            elif key == "java":
+                act_btn.clicked.connect(self._check_java)
+            self.table.setCellWidget(row, 3, act_btn)
+
+    def _install_apktool(self) -> None:
+        self.status_lbl.setText("Downloading and installing apktool...")
+        QApplication.processEvents()
+        ok, msg = install_apktool(callback=lambda m: self.status_lbl.setText(m))
+        self.status_lbl.setText(msg)
+        self.refresh()
+
+    def _install_payload_dumper(self) -> None:
+        self.status_lbl.setText("Downloading and installing payload-dumper-go...")
+        QApplication.processEvents()
+        ok, msg = install_payload_dumper_go(callback=lambda m: self.status_lbl.setText(m))
+        self.status_lbl.setText(msg)
+        self.refresh()
+
+    def _check_java(self) -> None:
+        self.status_lbl.setText("Checking Java runtime...")
+        QApplication.processEvents()
+        ok, msg = install_java(interactive=False, callback=lambda m: self.status_lbl.setText(m))
+        self.status_lbl.setText(msg)
+        self.refresh()
+
+    def _install_all(self) -> None:
+        self.install_all_btn.setEnabled(False)
+        self.status_lbl.setText("Setting up all external tools...")
+        QApplication.processEvents()
+        setup_all(callback=lambda m: (self.status_lbl.setText(m), QApplication.processEvents()))
+        self.status_lbl.setText("Setup completed!")
+        self.install_all_btn.setEnabled(True)
+        self.refresh()
 
 
 # =====================================================================

@@ -19,6 +19,7 @@ from dna_cli.commands.project import project_group
 from dna_cli.commands.repack import repack_group
 from dna_cli.commands.resize import resize_cmd
 from dna_cli.commands.rom import rom_group, unzip_cmd
+from dna_cli.commands.setup import setup_cmd
 from dna_cli.commands.super import super_group
 from dna_cli.commands.tui import tui_cmd
 from dna_cli.commands.unpack import unpack_group
@@ -96,6 +97,7 @@ def cli(
 cli.add_command(gui_cmd)
 cli.add_command(tui_cmd)
 cli.add_command(doctor_cmd)
+cli.add_command(setup_cmd)
 cli.add_command(project_group)
 cli.add_command(config_group)
 cli.add_command(rom_group)

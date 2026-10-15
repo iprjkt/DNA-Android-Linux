@@ -10,15 +10,15 @@ depends=(
     'python>=3.11'
     'python-click>=8.0'
     'python-rich>=12.0'
-    'android-tools'
-    'e2fsprogs'
-    'erofs-utils'
-    'brotli'
-    'zstd'
 )
 optdepends=(
     'python-pyqt6: Desktop graphical user interface (GUI)'
+    'android-tools: System fallback for lpunpack, lpmake, simg2img'
+    'e2fsprogs: System fallback for mke2fs, e2fsdroid'
+    'erofs-utils: System fallback for mkfs.erofs, fsck.erofs'
     'apktool: Framework services.jar smali decompile & recompile'
+    'payload-dumper-go: Extraction of payload.bin OTA images'
+    'jdk-openjdk: Java Runtime Environment for apktool'
     'avbtool: Verified Boot 2.0 image inspection'
     'f2fs-tools: Flash-Friendly File System inspection'
 )
@@ -81,7 +81,10 @@ package() {
         install -Dm644 completions/dna.fish "$pkgdir/usr/share/fish/vendor_completions.d/dna.fish"
     fi
 
-    # Bundled data assets
+    # Bundled data assets and binaries
     install -d "$pkgdir/usr/share/dna-linux/data"
     cp -r data/* "$pkgdir/usr/share/dna-linux/data/"
+    if [ -d "$pkgdir/usr/share/dna-linux/data/bin" ]; then
+        chmod 755 "$pkgdir/usr/share/dna-linux/data/bin"/*
+    fi
 }

@@ -68,6 +68,10 @@ cp -r "${REPO_DIR}/dna_cli" "${BUNDLE_ROOT}/"
 cp -r "${REPO_DIR}/dna_tui" "${BUNDLE_ROOT}/"
 cp -r "${REPO_DIR}/dna_gui" "${BUNDLE_ROOT}/"
 cp -r "${REPO_DIR}/data" "${BUNDLE_ROOT}/"
+if [ -d "${BUNDLE_ROOT}/data/bin" ]; then
+    chmod 755 "${BUNDLE_ROOT}/data/bin"/*
+    cp -p "${BUNDLE_ROOT}/data/bin"/* "${BUNDLE_ROOT}/bin/"
+fi
 cp -r "${REPO_DIR}/completions" "${BUNDLE_ROOT}/"
 cp -r "${REPO_DIR}/man" "${BUNDLE_ROOT}/"
 cp "${REPO_DIR}/README.md" "${BUNDLE_ROOT}/"
@@ -133,6 +137,10 @@ cp -r "${SCRIPT_DIR}/dna_gui" "${LIB_DIR}/"
 cp -r "${SCRIPT_DIR}/data" "${LIB_DIR}/"
 mkdir -p "${SHARE_DIR}/dna-linux"
 cp -r "${SCRIPT_DIR}/data" "${SHARE_DIR}/dna-linux/"
+if [ -d "${LIB_DIR}/data/bin" ]; then
+    chmod 755 "${LIB_DIR}/data/bin"/*
+    chmod 755 "${SHARE_DIR}/dna-linux/data/bin"/*
+fi
 
 # System launch wrappers
 cat << WRAPPER > "${BIN_DIR}/dna"

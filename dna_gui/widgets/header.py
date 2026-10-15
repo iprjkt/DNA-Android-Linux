@@ -126,6 +126,7 @@ class HeaderWidget(QWidget):
     back_clicked = pyqtSignal()
     project_badge_clicked = pyqtSignal()
     doctor_clicked = pyqtSignal()
+    setup_clicked = pyqtSignal()
     info_clicked = pyqtSignal()
     quit_clicked = pyqtSignal()
 
@@ -186,6 +187,16 @@ class HeaderWidget(QWidget):
         )
         self.doctor_btn.clicked.connect(self.doctor_clicked.emit)
         layout.addWidget(self.doctor_btn)
+
+        # Setup Mode Button
+        self.setup_btn = QPushButton("⚙ Setup")
+        self.setup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setup_btn.setStyleSheet(
+            "QPushButton { background: #1a1c24; border: 1px solid #272a38; border-radius: 8px; color: #cbd5e1; font-size: 11px; padding: 5px 10px; }"
+            "QPushButton:hover { background: #262938; border-color: #38bdf8; color: #38bdf8; }"
+        )
+        self.setup_btn.clicked.connect(self.setup_clicked.emit)
+        layout.addWidget(self.setup_btn)
 
         # Power / Exit button (IEC Standby icon)
         self.quit_btn = CircleIconButton(icon_type="power", tooltip="Exit Application")

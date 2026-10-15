@@ -29,6 +29,7 @@ def doctor_cmd(ctx_obj) -> None:
     table.add_column("Status", width=8, justify="center")
     table.add_column("Tool", style="bold")
     table.add_column("Category")
+    table.add_column("Source", width=10)
     table.add_column("Type", width=10)
     table.add_column("Version", style="dim")
     table.add_column("Path", style="dim")
@@ -42,6 +43,14 @@ def doctor_cmd(ctx_obj) -> None:
             badge = "[green]✓ OK[/green]"
             ver_text = status.version or "available"
             path_text = str(status.path) if status.path else "-"
+            if status.source == "bundled":
+                src_text = "[cyan]Bundled[/cyan]"
+            elif status.source == "setup":
+                src_text = "[magenta]Setup[/magenta]"
+            elif status.source == "override":
+                src_text = "[yellow]Override[/yellow]"
+            else:
+                src_text = "[blue]System[/blue]"
         else:
             if defn.required:
                 badge = "[red]✗ MISSING[/red]"
@@ -51,9 +60,10 @@ def doctor_cmd(ctx_obj) -> None:
                 missing_optional.append(defn)
             ver_text = "-"
             path_text = "-"
+            src_text = "[dim]Missing[/dim]"
 
         type_text = "[bold red]Required[/bold red]" if defn.required else "[dim]Optional[/dim]"
-        table.add_row(badge, defn.name, defn.category, type_text, ver_text, path_text)
+        table.add_row(badge, defn.name, defn.category, src_text, type_text, ver_text, path_text)
 
     console.print(table)
     console.print()
@@ -79,11 +89,15 @@ def doctor_cmd(ctx_obj) -> None:
             )
         if missing_optional:
             opt_cmd = get_install_command(missing_optional, distro)
+            setup_missing = [t.name for t in missing_optional if t.is_setup_tool]
+            setup_hint = ""
+            if setup_missing:
+                setup_hint = f"\n\n[bold cyan]Tip: External tools ({', '.join(setup_missing)}) can be set up automatically with:[/bold cyan]\n  [bold green]dna setup --all[/bold green]"
             console.print(
                 Panel(
                     f"[bold yellow]Missing Optional Tools ({len(missing_optional)}):[/bold yellow]\n"
                     f"For full feature support (e.g. F2FS, Java APK patching), run:\n\n"
-                    f"  [bold yellow]{opt_cmd}[/bold yellow]",
+                    f"  [bold yellow]{opt_cmd}[/bold yellow]{setup_hint}",
                     title="Optional Enhancements",
                     border_style="yellow",
                 )

@@ -35,6 +35,10 @@ cp -r "${REPO_DIR}/dna_tui" "${DEB_ROOT}/usr/lib/dna-linux/"
 cp -r "${REPO_DIR}/dna_gui" "${DEB_ROOT}/usr/lib/dna-linux/"
 cp -r "${REPO_DIR}/data" "${DEB_ROOT}/usr/lib/dna-linux/"
 cp -r "${REPO_DIR}/data" "${DEB_ROOT}/usr/share/dna-linux/"
+if [ -d "${DEB_ROOT}/usr/lib/dna-linux/data/bin" ]; then
+    chmod 755 "${DEB_ROOT}/usr/lib/dna-linux/data/bin"/*
+    chmod 755 "${DEB_ROOT}/usr/share/dna-linux/data/bin"/*
+fi
 
 # 2. Wrapper Scripts
 cat << 'EOF' > "${DEB_ROOT}/usr/bin/dna"
@@ -93,9 +97,9 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: iprjkt <iprjkt@users.noreply.github.com>
-Depends: python3 (>= 3.11), python3-click, python3-rich, e2fsprogs, erofs-utils, brotli, zstd
-Recommends: python3-pyqt6, android-sdk-platform-tools | android-tools
-Suggests: apktool, avbtool
+Depends: python3 (>= 3.11), python3-click, python3-rich
+Recommends: python3-pyqt6, default-jre
+Suggests: android-sdk-platform-tools | android-tools, e2fsprogs, erofs-utils, brotli, zstd, apktool, avbtool, payload-dumper-go
 Description: Native Linux (x86_64) Android ROM unpack, repack, and patch toolkit
  DNA-Linux is a high-performance native Linux port of DNA-Android.
  It provides command-line, curses TUI, and modern PyQt6 desktop GUI

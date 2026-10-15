@@ -4,7 +4,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64-orange.svg)](https://github.com/iprjkt/DNA-Android-Linux)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://www.python.org/)
 [![C++](https://img.shields.io/badge/C%2B%2B-20%20(Native%20Engine)-blueviolet.svg)](cpp/)
-[![Tests](https://img.shields.io/badge/Tests-120%2F120%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-126%2F126%20Passing-brightgreen.svg)](tests/)
 
 **DNA-Linux** is a high-performance native Linux (x86_64) port of **DNA-Android** (the popular Android ROM unpack/repack/patch toolkit modded by [@SoutaEver](https://github.com/SoutaEver)).
 
@@ -44,6 +44,10 @@ Engineered specifically for Linux environments (Arch Linux, KDE Plasma, Ubuntu, 
 - **Signature Bypass (Core Patch DSV)**: Rewrites signature verification logic in framework bytecode to enable direct installation and modification of system apps.
 - **Remove APK Protection**: Neutralizes installer downgrade restrictions and package check exceptions in `InstallPackageHelper`.
 - **Disable Secure Screenshot (DSS)**: Removes FLAG_SECURE restrictions on screen recording and capture, including an **Android 17 / Android U crash fix** that prevents bootloops caused by invalid method return descriptors.
+
+### 🧰 Bundled Core Native Tools & Zero-Friction Setup
+- **Bundled Core Binaries**: Essential Android partition and filesystem binaries (`e2fsdroid`, `mke2fs`, `debugfs`, `resize2fs`, `e2fsck`, `fsck.erofs`, `mkfs.erofs`, `simg2img`, `img2simg`, `lpunpack`, `lpmake`, `lpdump`, `sload_f2fs`, `brotli`, `zstd`, `avbtool`) are pre-bundled directly into the DNA package (`data/bin/`). Unpack and repack partitions out-of-the-box with zero host tool dependency friction.
+- **Setup Mode (`dna setup`)**: Heavy or external tools (`java`, `apktool`, `payload-dumper-go`) are managed on-demand via CLI (`dna setup --all`) or GUI (**⚙ Setup** button), keeping the base package compact and portable.
 
 ### 🎨 3 Flexible Interfaces
 1. **Desktop GUI (`dna-gui` / `dna gui`)**: Modern PyQt6 interface featuring an authentic AMOLED dark theme (`#0f1015`), tactile card-based navigation, live collapsible console log drawer, and background worker threads.
@@ -102,9 +106,10 @@ pip install dist/dna_linux-0.1.0-py3-none-any.whl[gui]
 
 ---
 
-## 🩺 System Verification (`dna doctor`)
+## 🩺 System Verification (`dna doctor`) & Setup Mode (`dna setup`)
 
-Run `dna doctor` at any time to verify that host tools and dependencies are detected:
+### 1. Tool Diagnostics (`dna doctor`)
+Run `dna doctor` at any time to verify all native tools, bundled binaries, and external dependencies:
 
 ```bash
 dna doctor
@@ -112,24 +117,44 @@ dna doctor
 
 Example diagnostics output:
 ```text
-┌─────────────────────────── DNA-Linux Tool Doctor ───────────────────────────┐
-│ Tool         Status    Version / Location                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ lpunpack     ✓ Found   /usr/bin/lpunpack                                    │
-│ lpmake       ✓ Found   /usr/bin/lpmake                                      │
-│ simg2img     ✓ Found   /usr/bin/simg2img                                    │
-│ img2simg     ✓ Found   /usr/bin/img2simg                                    │
-│ e2fsdroid    ✓ Found   /usr/bin/e2fsdroid                                   │
-│ mke2fs       ✓ Found   /usr/bin/mke2fs                                      │
-│ resize2fs    ✓ Found   /usr/bin/resize2fs                                   │
-│ fsck.erofs   ✓ Found   /usr/bin/fsck.erofs                                  │
-│ mkfs.erofs   ✓ Found   /usr/bin/mkfs.erofs                                  │
-│ brotli       ✓ Found   /usr/bin/brotli                                      │
-│ zstd         ✓ Found   /usr/bin/zstd                                        │
-│ apktool      ✓ Found   /usr/bin/apktool                                     │
-│ avbtool      ✓ Found   /usr/bin/avbtool                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
+                            Native Linux Tool Status                            
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+┃  Status  ┃ Tool              ┃ Category ┃ Source     ┃ Type       ┃ Version ┃ Path             ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+│   ✓ OK   │ lpunpack          │ Super    │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ lpmake            │ Super    │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ simg2img          │ Sparse   │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ img2simg          │ Sparse   │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ e2fsdroid         │ Ext4     │ Bundled    │ Required   │ 1.47.4  │ .../data/bin/... │
+│   ✓ OK   │ mke2fs            │ Ext4     │ Bundled    │ Required   │ 1.47.4  │ .../data/bin/... │
+│   ✓ OK   │ resize2fs         │ Ext4     │ Bundled    │ Required   │ 1.47.4  │ .../data/bin/... │
+│   ✓ OK   │ fsck.erofs        │ EROFS    │ Bundled    │ Required   │ 1.9.4   │ .../data/bin/... │
+│   ✓ OK   │ mkfs.erofs        │ EROFS    │ Bundled    │ Required   │ 1.9.4   │ .../data/bin/... │
+│   ✓ OK   │ brotli            │ Compress │ Bundled    │ Required   │ 1.2.0   │ .../data/bin/... │
+│   ✓ OK   │ zstd              │ Compress │ Bundled    │ Required   │ 1.5.7   │ .../data/bin/... │
+│   ✓ OK   │ java              │ Framework│ System     │ Optional   │ 21.0.1  │ /usr/bin/java    │
+│   ✓ OK   │ apktool           │ Framework│ Setup      │ Optional   │ 3.0.3   │ ~/.local/...     │
+│   ✓ OK   │ payload-dumper-go │ OTA      │ Setup      │ Optional   │ 2.1.0   │ ~/.local/...     │
+│   ✓ OK   │ avbtool           │ AVB      │ Bundled    │ Optional   │ bundled │ .../data/bin/... │
+└──────────┴━━━━━━━━━━━━━━━━━━━┴━━━━━━━━━━┴━━━━━━━━━━━━┴━━━━━━━━━━━━┴━━━━━━━━━┴━━━━━━━━━━━━━━━━━━┘
 ```
+
+### 2. Setup Mode for External Dependencies (`dna setup`)
+Core partition unpack and repack tools are **pre-bundled** directly into DNA-Linux. Heavy or platform-specific tools (`java`, `apktool`, `payload-dumper-go`) can be inspected and automatically installed on-demand:
+
+```bash
+# Display external tools status
+dna setup --status
+
+# Automatically download & configure all external tools
+dna setup --all
+
+# Install an individual tool
+dna setup apktool
+dna setup payload-dumper-go
+dna setup java
+```
+*Note: In the Desktop GUI, click the **⚙ Setup** button in the header bar or the Doctor dialog to manage external dependencies interactively.*
 
 ---
 
@@ -179,6 +204,7 @@ dna repack super --slot a_only
 
 ```text
 dna doctor                         Check tool dependencies & system health
+dna setup [--status|--all|<tool>]  Setup external tools (apktool, payload-dumper-go, java)
 dna project create <name>          Create a new project workspace
 dna project select <name>          Set active workspace
 dna project list                   List all workspaces

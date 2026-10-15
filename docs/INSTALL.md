@@ -10,19 +10,40 @@ DNA-Linux is a native x86_64 toolkit for Android ROM unpack, repack, conversion,
 - **Python:** Python 3.11 or newer
 - **Display (Optional for GUI):** Wayland or X11 session with PyQt6
 
-### Native Tool Dependencies
-To perform full unpack/repack operations, ensure the standard Android and filesystem tools are installed:
+### Native Tool Architecture & Bundled Binaries
+DNA-Linux bundles **16 core native partition and filesystem binaries** directly inside the package (`data/bin/`). You do **not** need to hunt for distro packages or deal with incompatible library versions for basic partition unpacking and repacking.
 
-| Tool | Arch Linux Package | Debian / Ubuntu Package | Purpose |
+| Tool | Category | Distribution Status | Purpose |
 |---|---|---|---|
-| `lpunpack`, `lpmake` | `android-tools` | `android-sdk-platform-tools` | Dynamic `super.img` operations |
-| `simg2img`, `img2simg` | `android-tools` | `android-sdk-platform-tools` | Android sparse image conversions |
-| `mke2fs`, `e2fsdroid` | `e2fsprogs` | `e2fsprogs` | ext4 partition filesystem handling |
-| `fsck.erofs`, `mkfs.erofs` | `erofs-utils` | `erofs-utils` | EROFS partition filesystem handling |
-| `brotli` | `brotli` | `brotli` | `.new.dat.br` decompression/compression |
-| `zstd` | `zstd` | `zstd` | `.zst` image decompression/compression |
-| `apktool` | `apktool` (AUR / manual) | `apktool` | Framework `services.jar` smali patching |
-| `avbtool` | `avbtool` (AUR / git) | `avbtool` | AVB 2.0 image inspection |
+| `lpunpack`, `lpmake`, `lpdump` | Super Partition | **Bundled** | Dynamic `super.img` operations |
+| `simg2img`, `img2simg` | Sparse Image | **Bundled** | Android sparse image conversions |
+| `mke2fs`, `e2fsdroid`, `debugfs`, `resize2fs`, `e2fsck` | ext4 Filesystem | **Bundled** | ext4 partition rootless unpack & repack |
+| `fsck.erofs`, `mkfs.erofs` | EROFS Filesystem | **Bundled** | EROFS decompression and rebuilding |
+| `sload_f2fs` | F2FS Filesystem | **Bundled** | F2FS SELinux metadata injection |
+| `brotli`, `zstd` | Compression | **Bundled** | `.br` and `.zst` compression/decompression |
+| `avbtool` | AVB 2.0 | **Bundled** | Verified Boot 2.0 inspection |
+| `java` | Framework | System / Setup | OpenJDK Runtime (JRE 17+) for APK/JAR patching |
+| `apktool` | Framework | **Setup Mode** | `services.jar` bytecode decompiler/recompiler |
+| `payload-dumper-go` | OTA Firmware | **Setup Mode** | Direct extraction of `payload.bin` |
+
+---
+
+### Setup Mode for External Dependencies (`dna setup`)
+To configure optional external dependencies (`apktool`, `payload-dumper-go`, `java`):
+
+```bash
+# Check status of external tools
+dna setup --status
+
+# Automatically install all external tools
+dna setup --all
+
+# Or install individual components
+dna setup apktool
+dna setup payload-dumper-go
+dna setup java
+```
+In the GUI, simply click the **⚙ Setup** button in the header bar.
 
 ---
 
@@ -102,24 +123,26 @@ dna doctor
 
 Output:
 ```text
-┌─────────────────────────── DNA-Linux Tool Doctor ───────────────────────────┐
-│ Tool         Status    Version / Location                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ lpunpack     ✓ Found   /usr/bin/lpunpack                                    │
-│ lpmake       ✓ Found   /usr/bin/lpmake                                      │
-│ simg2img     ✓ Found   /usr/bin/simg2img                                    │
-│ img2simg     ✓ Found   /usr/bin/img2simg                                    │
-│ e2fsdroid    ✓ Found   /usr/bin/e2fsdroid                                   │
-│ mke2fs       ✓ Found   /usr/bin/mke2fs                                      │
-│ resize2fs    ✓ Found   /usr/bin/resize2fs                                   │
-│ fsck.erofs   ✓ Found   /usr/bin/fsck.erofs                                  │
-│ mkfs.erofs   ✓ Found   /usr/bin/mkfs.erofs                                  │
-│ brotli       ✓ Found   /usr/bin/brotli                                      │
-│ zstd         ✓ Found   /usr/bin/zstd                                        │
-│ apktool      ✓ Found   3.0.3                                                │
-│ avbtool      ✓ Found   1.3.0                                                │
-│ java         ✓ Found   openjdk 21                                           │
-└─────────────────────────────────────────────────────────────────────────────┘
+                            Native Linux Tool Status                            
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┓
+┃  Status  ┃ Tool              ┃ Category ┃ Source     ┃ Type       ┃ Version ┃ Path             ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━┩
+│   ✓ OK   │ lpunpack          │ Super    │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ lpmake            │ Super    │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ simg2img          │ Sparse   │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ img2simg          │ Sparse   │ Bundled    │ Required   │ bundled │ .../data/bin/... │
+│   ✓ OK   │ e2fsdroid         │ Ext4     │ Bundled    │ Required   │ 1.47.4  │ .../data/bin/... │
+│   ✓ OK   │ mke2fs            │ Ext4     │ Bundled    │ Required   │ 1.47.4  │ .../data/bin/... │
+│   ✓ OK   │ resize2fs         │ Ext4     │ Bundled    │ Required   │ 1.47.4  │ .../data/bin/... │
+│   ✓ OK   │ fsck.erofs        │ EROFS    │ Bundled    │ Required   │ 1.9.4   │ .../data/bin/... │
+│   ✓ OK   │ mkfs.erofs        │ EROFS    │ Bundled    │ Required   │ 1.9.4   │ .../data/bin/... │
+│   ✓ OK   │ brotli            │ Compress │ Bundled    │ Required   │ 1.2.0   │ .../data/bin/... │
+│   ✓ OK   │ zstd              │ Compress │ Bundled    │ Required   │ 1.5.7   │ .../data/bin/... │
+│   ✓ OK   │ java              │ Framework│ System     │ Optional   │ 21.0.1  │ /usr/bin/java    │
+│   ✓ OK   │ apktool           │ Framework│ Setup      │ Optional   │ 3.0.3   │ ~/.local/...     │
+│   ✓ OK   │ payload-dumper-go │ OTA      │ Setup      │ Optional   │ 2.1.0   │ ~/.local/...     │
+│   ✓ OK   │ avbtool           │ AVB      │ Bundled    │ Optional   │ bundled │ .../data/bin/... │
+└──────────┴━━━━━━━━━━━━━━━━━━━┴━━━━━━━━━━┴━━━━━━━━━━━━┴━━━━━━━━━━━━┴━━━━━━━━━┴━━━━━━━━━━━━━━━━━━┘
 ✓ All required tools detected! Environment ready for ROM manipulation.
 ```
 

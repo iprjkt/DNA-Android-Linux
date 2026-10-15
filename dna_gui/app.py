@@ -85,6 +85,7 @@ from dna_gui.widgets.dialogs import (
     RepackSuperDialog,
     RepackZstdDialog,
     SelectProjectDialog,
+    SetupToolsDialog,
     UnpackImgDialog,
     UnpackSuperDialog,
     UnpackZstdDialog,
@@ -131,6 +132,7 @@ class MainWindow(QMainWindow):
         self.header.back_clicked.connect(self._on_back_clicked)
         self.header.project_badge_clicked.connect(self._open_project_selector)
         self.header.doctor_clicked.connect(self._open_doctor)
+        self.header.setup_clicked.connect(self._open_setup)
         self.header.info_clicked.connect(self._open_about)
         self.header.quit_clicked.connect(self.close)
         main_layout.addWidget(self.header)
@@ -278,6 +280,10 @@ class MainWindow(QMainWindow):
 
     def _open_doctor(self) -> None:
         dlg = DoctorDialog(self)
+        dlg.exec()
+
+    def _open_setup(self) -> None:
+        dlg = SetupToolsDialog(self)
         dlg.exec()
 
     def _require_project(self) -> ProjectPaths | None:
