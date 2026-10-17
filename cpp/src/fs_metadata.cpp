@@ -49,8 +49,18 @@ FsMetadataResult scan_directory_fs_metadata(
     res.fs_entries.push_back(FsConfigEntry{"/", 0, 0, "755", ""});
     if (!clean_mount.empty()) {
         res.fs_entries.push_back(FsConfigEntry{clean_mount, 0, 0, "755", ""});
+        res.fc_entries.push_back({"/" + clean_mount + "/lost\\+found", "u:object_r:rootfs:s0"});
+        std::string def_label = (clean_mount == "vendor" || clean_mount == "odm")
+            ? "u:object_r:vendor_file:s0"
+            : "u:object_r:system_file:s0";
+        res.fc_entries.push_back({"/" + clean_mount + "(/.*)?", def_label});
+    } else {
+        res.fc_entries.push_back({"/lost\\+found", "u:object_r:rootfs:s0"});
+        res.fc_entries.push_back({"/init", "u:object_r:init_exec:s0"});
+        res.fc_entries.push_back({"/system/bin/init", "u:object_r:init_exec:s0"});
+        res.fc_entries.push_back({"/system(/.*)?", "u:object_r:system_file:s0"});
+        res.fc_entries.push_back({"/(.*)?", "u:object_r:rootfs:s0"});
     }
-    res.fc_entries.push_back({"/" + clean_mount + "(/.*)?", "u:object_r:system_file:s0"});
 
     std::error_code ec;
     if (!fs::is_directory(root, ec)) {
@@ -75,9 +85,30 @@ FsMetadataResult scan_directory_fs_metadata(
         uint32_t gid = 0;
 
         if (lstat(entry.path().c_str(), &st) == 0) {
-            uid = st.st_uid;
-            gid = st.st_gid;
-            mode_str = format_octal_mode(st.st_mode);
+            uid = (st.st_uid >= 1000) ? 0 : st.st_uid;
+            if (st.st_gid >= 1000) {
+                bool is_bin = (target_path.find("bin/") != std::string::npos || target_path.rfind("bin", 0) == 0);
+                bool is_init = (target_path == "init" || target_path == "system/bin/init" || target_path == "bin/init");
+                if (is_bin && !is_init && S_ISREG(st.st_mode) && (st.st_mode & 0111)) {
+                    gid = 2000;
+                } else {
+                    gid = 0;
+                }
+            } else {
+                gid = st.st_gid;
+            }
+
+            if (target_path == "init" || target_path == "system/bin/init" || target_path == "bin/init") {
+                mode_str = "755";
+                uid = 0;
+                gid = 0;
+            } else if (target_path.size() >= 6 && target_path.rfind("run-as") == target_path.size() - 6) {
+                mode_str = "4750";
+                uid = 0;
+                gid = 2000;
+            } else {
+                mode_str = format_octal_mode(st.st_mode);
+            }
         } else {
             if (entry.is_directory(ec)) mode_str = "755";
         }

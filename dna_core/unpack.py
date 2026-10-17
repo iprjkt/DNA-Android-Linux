@@ -12,6 +12,7 @@ from pathlib import Path
 
 from dna_core.detection import ImageType, detect_image_type
 from dna_core.fs_metadata import (
+    is_system_as_root,
     scan_directory_fs_metadata,
     write_file_contexts_file,
     write_fs_config_file,
@@ -131,7 +132,9 @@ def unpack_image(
         config_dir = proj.paths.config_dir if proj else destination.parent / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
 
-        fs_entries, fc_entries = scan_directory_fs_metadata(destination, mount_point=part_name)
+        is_sar = is_system_as_root(destination, part_name)
+        mount_label = "" if is_sar else part_name
+        fs_entries, fc_entries = scan_directory_fs_metadata(destination, mount_point=mount_label)
         write_fs_config_file(fs_entries, config_dir / f"{part_name}_fs_config")
         write_file_contexts_file(fc_entries, config_dir / f"{part_name}_file_contexts")
         print(f"  • fs_config entries: {len(fs_entries)} -> {config_dir / f'{part_name}_fs_config'}")

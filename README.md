@@ -4,7 +4,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64-orange.svg)](https://github.com/iprjkt/DNA-Android-Linux)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-green.svg)](https://www.python.org/)
 [![C++](https://img.shields.io/badge/C%2B%2B-20%20(Native%20Engine)-blueviolet.svg)](cpp/)
-[![Tests](https://img.shields.io/badge/Tests-126%2F126%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-131%2F131%20Passing-brightgreen.svg)](tests/)
 
 **DNA-Linux** is a high-performance native Linux (x86_64) port of **DNA-Android** (the popular Android ROM unpack/repack/patch toolkit modded by [@SoutaEver](https://github.com/SoutaEver)).
 
@@ -20,8 +20,9 @@ Engineered specifically for Linux environments (Arch Linux, KDE Plasma, Ubuntu, 
 
 ### 📦 Filesystem Unpack, Repack & Conversion
 - **Auto-Detection**: Automatic filesystem sniffing for `EXT4`, `EROFS`, `F2FS`, `SPARSE`, `SUPER_LP`, `PAYLOAD_BIN`, `ZSTD`, `BROTLI`, and `DAT`.
+- **System-As-Root (SAR) & Authoritative SELinux Harvesting**: Automatic detection of System-As-Root partition topologies (`mount = /`). Automatically parses and harvests canonical compiled `file_contexts` from `etc/selinux/` (`plat_file_contexts`, `vendor_file_contexts`, etc.) and maps host desktop UIDs/GIDs to Android AIDs (root `0:0`, shell `0:2000`) so that critical binaries like `/system/bin/init` retain exact on-disk `init_exec` SELinux xattrs, completely eliminating `restorecon: Read-only file system` early-boot panics.
 - **Rootless ext4 Extraction & Repack**: Userspace partition extraction via `debugfs` and pristine reconstruction via `mke2fs` + `e2fsdroid` with full preservation of SELinux labels, file capabilities, timestamps, permissions, and symlink targets.
-- **EROFS Support**: Full decompression and rebuilding with `fsck.erofs` and `mkfs.erofs` supporting lz4, lz4hc, and lzma compression modes.
+- **EROFS Support**: Full decompression and rebuilding with `fsck.erofs` and `mkfs.erofs` supporting lz4, lz4hc, and lzma compression modes with `--all-root` support.
 - **Dynamic Super Partitions**: Extraction of dynamic partitions from `super.img` with `lpunpack` and rebuilding with `lpmake` (supports A-only, Virtual A/B, sparse outputs, and custom group size constraints).
 - **Partition Conversions**: Seamless conversions between `img ↔ simg` (sparse), `img ↔ dat ↔ br`, and split/merge for multi-part super images.
 - **Partition Resizing**: Resize ext4 filesystem partitions with automatic block calculation and `resize2fs`.

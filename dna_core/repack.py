@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 
 from dna_core.fs_metadata import (
+    get_effective_mount_point,
+    is_system_as_root,
     scan_directory_fs_metadata,
     sync_file_contexts_file,
     sync_fs_config_file,
@@ -115,9 +117,13 @@ def repack_image(
     if not fs_file:
         fs_file = target_config_dir / f"{part_name}_fs_config"
 
+    is_sar = is_system_as_root(src, part_name)
+    eff_mount = get_effective_mount_point(src, part_name)
+    mount_label = "" if is_sar else part_name
+
     if not fs_file.is_file() or not fc_file.is_file():
-        print(f"> Scanning directory to generate fs_config and file_contexts...")
-        fs_entries, fc_entries = scan_directory_fs_metadata(src, mount_point=part_name)
+        print(f"> Scanning directory to generate fs_config and file_contexts (SAR: {is_sar}, Mount: {eff_mount})...")
+        fs_entries, fc_entries = scan_directory_fs_metadata(src, mount_point=mount_label)
         if not fs_file.is_file():
             write_fs_config_file(fs_entries, fs_file)
             print(f"  • fs_config entries: {len(fs_entries)} -> {fs_file}")
@@ -125,13 +131,13 @@ def repack_image(
             write_file_contexts_file(fc_entries, fc_file)
             print(f"  • file_contexts entries: {len(fc_entries)} -> {fc_file}")
     else:
-        print(f"> Using existing SELinux metadata:")
+        print(f"> Using existing SELinux metadata (SAR: {is_sar}, Mount: {eff_mount}):")
         print(f"  • fs_config: {fs_file}")
         print(f"  • file_contexts: {fc_file}")
 
     # Synchronize and sanitize fs_config and file_contexts for ext4/erofs
-    sync_fs_config_file(src, mount_point=part_name, fs_file=fs_file)
-    sync_file_contexts_file(mount_point=part_name, fc_file=fc_file)
+    sync_fs_config_file(src, mount_point=mount_label, fs_file=fs_file)
+    sync_file_contexts_file(mount_point=mount_label, fc_file=fc_file, root_dir=src)
 
     if fs_type == "ext4":
         # Calculate size: sum of directory sizes + 25% safety overhead + 16MB minimum
@@ -147,7 +153,7 @@ def repack_image(
         print(f"> Content size: {content_mb:.1f} MB, Allocated partition size: {total_mb:.1f} MB ({blocks} blocks)")
 
         # Step 1: mke2fs
-        print(f"> Creating EXT4 partition filesystem with mke2fs...")
+        print(f"> Creating EXT4 partition filesystem with mke2fs (mount: {eff_mount})...")
         mke2fs_args = [
             "-O",
             "^has_journal,^metadata_csum,extent,huge_file,^flex_bg,^64bit,uninit_bg,dir_nlink,extra_isize",
@@ -160,7 +166,7 @@ def repack_image(
             "-I",
             "256",
             "-M",
-            f"/{part_name}",
+            eff_mount,
             "-m",
             "0",
             "-F",
@@ -170,7 +176,7 @@ def repack_image(
         run_tool("mke2fs", mke2fs_args, check=True)
 
         # Step 2: e2fsdroid
-        print(f"> Populating filesystem and applying SELinux permissions with e2fsdroid...")
+        print(f"> Populating filesystem and applying SELinux permissions with e2fsdroid (mount: {eff_mount})...")
         e2fsdroid_args = [
             "-e",
             "-T",
@@ -182,18 +188,19 @@ def repack_image(
             "-f",
             str(src),
             "-a",
-            f"/{part_name}",
+            eff_mount,
             str(destination),
         ]
         run_tool("e2fsdroid", e2fsdroid_args, check=True)
 
     elif fs_type == "erofs":
-        print(f"> Creating EROFS filesystem with mkfs.erofs (algorithm: {compress_erofs}, level: {erofs_level})...")
+        print(f"> Creating EROFS filesystem with mkfs.erofs (mount: {eff_mount}, algorithm: {compress_erofs}, level: {erofs_level})...")
         erofs_args = [
             "-T",
             "1230768000",
             f"-z{compress_erofs},{erofs_level}",
-            f"--mount-point=/{part_name}",
+            f"--mount-point={eff_mount}",
+            "--all-root",
             str(destination),
             str(src),
         ]
