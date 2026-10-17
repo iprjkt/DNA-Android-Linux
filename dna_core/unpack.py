@@ -65,7 +65,8 @@ def unpack_image(
         raise FileNotFoundError(f"Image file '{src}' not found.")
 
     proj = project or (get_current_project() if not out_dir else None)
-    part_name = src.stem
+    clean_part = src.stem.removesuffix("_a").removesuffix("_b")
+    part_name = clean_part if clean_part else src.stem
 
     if out_dir:
         destination = Path(out_dir).resolve()
@@ -201,25 +202,83 @@ def unpack_super(
 
         args: list[str] = []
         if partitions:
+            # Map requested partition names to actual partition names present in super image metadata
+            available_info = get_super_partitions_info(target_img)
+            actual_names = {p.name for p in available_info} if available_info else set()
             for p in partitions:
-                args.extend(["-p", p])
+                if not actual_names or p in actual_names:
+                    args.extend(["-p", p])
+                elif f"{p}_a" in actual_names:
+                    args.extend(["-p", f"{p}_a"])
+                elif f"{p}_b" in actual_names:
+                    args.extend(["-p", f"{p}_b"])
+                elif p.endswith(("_a", "_b")) and p[:-2] in actual_names:
+                    args.extend(["-p", p[:-2]])
+                else:
+                    args.extend(["-p", p])
         args.append(str(target_img))
         args.append(str(destination))
 
         print(f"> Running lpunpack to extract partition images...")
         run_tool("lpunpack", args, check=True)
 
-        extracted_imgs = [p for p in destination.glob("*.img") if p.is_file() and p.resolve() != src.resolve()]
+        raw_extracted = [p for p in destination.glob("*.img") if p.is_file() and p.resolve() != src.resolve()]
+
+        # Step 1: Remove empty 0-byte inactive slot placeholder files extracted by lpunpack
+        active_extracted: list[Path] = []
+        for img in raw_extracted:
+            try:
+                if img.stat().st_size == 0:
+                    print(f"> Removing 0-byte inactive slot placeholder: {img.name}")
+                    img.unlink()
+                else:
+                    active_extracted.append(img)
+            except OSError:
+                pass
+
+        # Step 2: Normalize partition filenames by stripping slot suffixes (_a / _b)
+        # e.g. vendor_a.img -> vendor.img, system_a.img -> system.img
+        normalized_imgs: list[Path] = []
+        for img in active_extracted:
+            stem = img.stem
+            clean_stem = stem
+            if stem.endswith("_a"):
+                clean_stem = stem[:-2]
+            elif stem.endswith("_b"):
+                matching_a = f"{stem[:-2]}_a"
+                has_matching_a = any(other.stem == matching_a for other in active_extracted)
+                if not has_matching_a:
+                    clean_stem = stem[:-2]
+
+            clean_file = destination / f"{clean_stem}.img"
+            if clean_file.resolve() != img.resolve():
+                if clean_file.exists():
+                    try:
+                        clean_file.unlink()
+                    except OSError:
+                        pass
+                try:
+                    img.rename(clean_file)
+                    print(f"> Normalized partition name: {img.name} -> {clean_file.name}")
+                    normalized_imgs.append(clean_file)
+                except OSError as e:
+                    print(f"! Warning: Failed to rename {img.name} to {clean_file.name}: {e}")
+                    normalized_imgs.append(img)
+            else:
+                normalized_imgs.append(img)
+
+        # Step 3: Filter by requested partitions if specified
         if partitions:
-            req_set = set(partitions)
+            req_set = {p.removesuffix("_a").removesuffix("_b") for p in partitions} | set(partitions)
             extracted_imgs = [
-                p for p in extracted_imgs
+                p for p in normalized_imgs
                 if p.stem in req_set
-                or p.stem.removesuffix("_a") in req_set
-                or p.stem.removesuffix("_b") in req_set
+                or p.name in req_set
                 or f"{p.stem}_a" in req_set
                 or f"{p.stem}_b" in req_set
             ]
+        else:
+            extracted_imgs = sorted(normalized_imgs, key=lambda x: x.name)
 
         print(f"> Successfully extracted {len(extracted_imgs)} partition image(s):")
         for img in extracted_imgs:
@@ -361,16 +420,17 @@ def get_super_partitions_info(super_path: Path | str) -> list[SuperPartitionInfo
         if not active_parts:
             return []
 
-        # Determine display name: if all active partitions end with '_a' and no active '_b' partitions exist, strip '_a'
+        # Determine display name
         names = [n for n, _ in active_parts]
         has_a = any(n.endswith("_a") for n in names)
         has_b = any(n.endswith("_b") for n in names)
-        strip_slot_a = has_a and not has_b
 
         result: list[SuperPartitionInfo] = []
         for name, size_bytes in active_parts:
-            if strip_slot_a and name.endswith("_a"):
-                disp = name[:-2]
+            if name.endswith("_a"):
+                disp = f"{name[:-2]} (Slot A)" if has_b else name[:-2]
+            elif name.endswith("_b"):
+                disp = f"{name[:-2]} (Slot B)" if has_a else name[:-2]
             else:
                 disp = name
             result.append(

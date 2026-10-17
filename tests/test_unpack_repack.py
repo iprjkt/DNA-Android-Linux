@@ -97,6 +97,51 @@ class TestUnpackRepack(unittest.TestCase):
             self.assertIn("system.img", extracted_names)
             self.assertIn("vendor.img", extracted_names)
 
+    def test_super_vab_slot_normalization(self):
+        """Verify that Virtual A/B super.img unpacking normalizes partition names (vendor_a.img -> vendor.img)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            td = Path(tmpdir)
+            sys_img = td / "system.img"
+            sys_img.write_bytes(b"\x00" * (4 * 1024 * 1024))
+            ven_img = td / "vendor.img"
+            ven_img.write_bytes(b"\x00" * (4 * 1024 * 1024))
+
+            super_img = td / "super.img"
+            unpack_dir = td / "super_out"
+
+            # 1. Repack super with Virtual A/B (partitions are named system_a, vendor_a in super)
+            repack_super(
+                partition_images=[sys_img, ven_img],
+                out_super=super_img,
+                device_size=32 * 1024 * 1024,
+                group_name="qti_dynamic_partitions",
+                slot_type="vab",
+                sparse=False,
+            )
+            self.assertTrue(super_img.is_file())
+
+            # 2. Unpack all: partition files should be normalized to system.img and vendor.img (no _a)
+            extracted = unpack_super(super_img, out_dir=unpack_dir)
+            extracted_names = [e.name for e in extracted]
+            self.assertIn("system.img", extracted_names)
+            self.assertIn("vendor.img", extracted_names)
+            self.assertNotIn("system_a.img", extracted_names)
+            self.assertNotIn("vendor_a.img", extracted_names)
+
+            self.assertTrue((unpack_dir / "system.img").is_file())
+            self.assertTrue((unpack_dir / "vendor.img").is_file())
+            self.assertFalse((unpack_dir / "system_a.img").exists())
+            self.assertFalse((unpack_dir / "vendor_a.img").exists())
+
+            # 3. Selective unpack using clean name 'vendor'
+            unpack_sel_dir = td / "super_sel_out"
+            extracted_sel = unpack_super(super_img, out_dir=unpack_sel_dir, partitions=["vendor"])
+            extracted_sel_names = [e.name for e in extracted_sel]
+            self.assertEqual(extracted_sel_names, ["vendor.img"])
+            self.assertTrue((unpack_sel_dir / "vendor.img").is_file())
+            self.assertFalse((unpack_sel_dir / "system.img").exists())
+            self.assertFalse((unpack_sel_dir / "vendor_a.img").exists())
+
     def test_create_temp_raw_file_prefers_destination(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             td = Path(tmpdir)
